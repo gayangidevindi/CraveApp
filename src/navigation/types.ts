@@ -24,7 +24,6 @@ export type MainStackParamList = {
 };
 
 export type RootStackParamList = {
-  DevelopmentEntry: undefined;
   Authentication: NavigatorScreenParams<AuthStackParamList> | undefined;
   Main: NavigatorScreenParams<MainStackParamList> | undefined;
 };

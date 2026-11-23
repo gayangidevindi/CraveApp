@@ -1,6 +1,7 @@
 import type { ComponentProps } from 'react';
 import { Feather } from '@expo/vector-icons';
 import {
+  Pressable,
   StyleSheet,
   Text,
   TextInput,
@@ -19,6 +20,9 @@ export interface CustomInputProps extends TextInputProps {
   label: string;
   error?: string;
   icon?: FeatherIconName;
+  rightIcon?: FeatherIconName;
+  rightIconAccessibilityLabel?: string;
+  onRightIconPress?: () => void;
   containerStyle?: StyleProp<ViewStyle>;
   inputStyle?: StyleProp<TextStyle>;
 }
@@ -27,6 +31,9 @@ export function CustomInput({
   label,
   error,
   icon,
+  rightIcon,
+  rightIconAccessibilityLabel,
+  onRightIconPress,
   containerStyle,
   inputStyle,
   accessibilityLabel,
@@ -68,6 +75,23 @@ export function CustomInput({
             inputStyle,
           ]}
         />
+        {rightIcon ? (
+          <Pressable
+            onPress={onRightIconPress}
+            disabled={!onRightIconPress}
+            accessibilityRole={onRightIconPress ? 'button' : undefined}
+            accessibilityLabel={rightIconAccessibilityLabel}
+            hitSlop={4}
+            style={styles.rightIconButton}
+          >
+            <Feather
+              name={rightIcon}
+              size={18}
+              color={theme.colors.chocolateBrown}
+              accessible={false}
+            />
+          </Pressable>
+        ) : null}
       </View>
       {error ? (
         <View style={styles.errorRow}>
@@ -118,6 +142,12 @@ const styles = StyleSheet.create({
   },
   inputDisabled: {
     backgroundColor: theme.colors.warmCream,
+  },
+  rightIconButton: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   input: {
     minHeight: 48,
