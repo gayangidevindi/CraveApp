@@ -14,4 +14,10 @@ describe('theme palette', () => {
     expect(theme.spacing.md).toBeGreaterThan(0);
     expect(theme.typography.body).toBeGreaterThan(0);
   });
+
+  it('provides rounded corners and cross-platform shadow tokens', () => {
+    expect(theme.radius.pill).toBeGreaterThan(theme.radius.lg);
+    expect(theme.shadows.card.elevation).toBeGreaterThan(0);
+    expect(theme.shadows.card.shadowRadius).toBeGreaterThan(0);
+  });
 });
