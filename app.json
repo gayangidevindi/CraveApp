@@ -23,7 +23,15 @@
     },
     "plugins": [
       "expo-secure-store",
-      "expo-font"
+      "expo-font",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "CraveApp uses your photos to set your profile picture.",
+          "cameraPermission": "CraveApp uses your camera to take a profile picture.",
+          "microphonePermission": false
+        }
+      ]
     ]
   }
 }
