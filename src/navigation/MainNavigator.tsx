@@ -1,6 +1,7 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 import { RecipeDetailsScreen } from '../features/recipes/screens/RecipeDetailsScreen';
+import { EditProfileScreen } from '../features/profile/screens/EditProfileScreen';
 import type { MainStackParamList } from './types';
 import { MainTabNavigator } from './MainTabNavigator';
 import { theme } from '../shared/theme/theme';
@@ -30,6 +31,11 @@ export function MainNavigator() {
         name="RecipeDetails"
         component={RecipeDetailsScreen}
         options={{ title: 'Recipe details' }}
+      />
+      <Stack.Screen
+        name="EditProfile"
+        component={EditProfileScreen}
+        options={{ title: 'Edit profile' }}
       />
     </Stack.Navigator>
   );

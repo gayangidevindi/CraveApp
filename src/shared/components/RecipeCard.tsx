@@ -25,6 +25,7 @@ export interface RecipeCardProps {
   imagePlaceholderIcon?: FeatherIconName;
   isFavorite?: boolean;
   showFavorite?: boolean;
+  favoriteDisabled?: boolean;
   onPress?: () => void;
   onFavoritePress?: () => void;
   style?: StyleProp<ViewStyle>;
@@ -40,6 +41,7 @@ export function RecipeCard({
   imagePlaceholderIcon = 'coffee',
   isFavorite = false,
   showFavorite = false,
+  favoriteDisabled = false,
   onPress,
   onFavoritePress,
   style,
@@ -120,11 +122,15 @@ export function RecipeCard({
       {onFavoritePress ? (
         <Pressable
           onPress={onFavoritePress}
+          disabled={favoriteDisabled}
           accessibilityRole="button"
           accessibilityLabel={
             isFavorite ? `Remove ${title} from favourites` : `Add ${title} to favourites`
           }
-          accessibilityState={{ selected: isFavorite }}
+          accessibilityState={{
+            selected: isFavorite,
+            disabled: favoriteDisabled,
+          }}
           hitSlop={4}
           style={styles.favoriteButton}
         >

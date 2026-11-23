@@ -21,6 +21,7 @@ export type MainStackParamList = {
   RecipeDetails: {
     recipeId: string;
   };
+  EditProfile: undefined;
 };
 
 export type RootStackParamList = {
