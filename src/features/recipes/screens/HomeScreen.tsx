@@ -18,13 +18,15 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { MainTabScreenProps } from '../../../navigation/types';
-import { useAppSelector } from '../../../store/hooks';
+import { useAppDispatch, useAppSelector } from '../../../store/hooks';
 import { useDebouncedValue } from '../../../shared/hooks/useDebouncedValue';
 import { CategoryChip } from '../../../shared/components/CategoryChip';
 import { EmptyState } from '../../../shared/components/EmptyState';
 import { ErrorState } from '../../../shared/components/ErrorState';
 import { LoadingState } from '../../../shared/components/LoadingState';
+import { OfflineBanner } from '../../../shared/components/OfflineBanner';
 import { RecipeCard } from '../../../shared/components/RecipeCard';
+import { toggleUserFavourite } from '../state/favouritesSlice';
 import {
   useFilterMealsByCategoryQuery,
   useGetFeaturedMealQuery,
@@ -43,6 +45,10 @@ function getErrorMessage(error: QueryError): string {
   }
 
   if ('status' in error) {
+    if (error.status === 'CUSTOM_ERROR') {
+      return error.error;
+    }
+
     if (error.status === 'FETCH_ERROR') {
       return 'Unable to reach TheMealDB. Check your internet connection and try again.';
     }
@@ -63,7 +69,10 @@ function getErrorMessage(error: QueryError): string {
 }
 
 export function HomeScreen({ navigation }: Props) {
+  const dispatch = useAppDispatch();
   const user = useAppSelector((state) => state.auth.user);
+  const networkOffline = useAppSelector((state) => state.network.isOffline);
+  const favouritesState = useAppSelector((state) => state.favourites);
   const { width } = useWindowDimensions();
   const [searchText, setSearchText] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -88,6 +97,22 @@ export function HomeScreen({ navigation }: Props) {
   const featuredMeal = featuredQuery.data;
   const meals = isDebouncing ? [] : recipes;
   const userName = user?.firstName || user?.username || 'there';
+  const userId = user ? String(user.id) : null;
+  const favouriteMeals = userId
+    ? (favouritesState.byUser[userId] ?? [])
+    : [];
+  const favouritesLoaded =
+    userId !== null && favouritesState.loadedByUser[userId] === true;
+  const favouritesSaving =
+    userId !== null && favouritesState.savingByUser[userId] === true;
+  const favouritesError =
+    userId !== null ? favouritesState.errorByUser[userId] : null;
+
+  const toggleFavourite = (meal: Meal) => {
+    if (userId !== null) {
+      void dispatch(toggleUserFavourite({ userId, meal }));
+    }
+  };
 
   const refreshContent = async () => {
     setRefreshing(true);
@@ -114,7 +139,11 @@ export function HomeScreen({ navigation }: Props) {
       title={item.strMeal}
       imageSource={item.strMealThumb ? { uri: item.strMealThumb } : undefined}
       category={item.strCategory || selectedCategory || undefined}
-      showFavorite
+      isFavorite={favouriteMeals.some(
+        (favourite) => favourite.idMeal === item.idMeal,
+      )}
+      favoriteDisabled={!favouritesLoaded || favouritesSaving}
+      onFavoritePress={() => toggleFavourite(item)}
       onPress={() => openRecipe(item)}
       style={[
         styles.recipeCard,
@@ -156,6 +185,7 @@ export function HomeScreen({ navigation }: Props) {
 
   const renderHeader = () => (
     <View>
+      {networkOffline ? <OfflineBanner /> : null}
       <View style={styles.topBar}>
         <View style={styles.greeting}>
           <Text style={styles.greetingLabel}>Good food, good to see you</Text>
@@ -276,7 +306,11 @@ export function HomeScreen({ navigation }: Props) {
                 ? `${featuredMeal.strArea} cuisine`
                 : undefined
             }
-            showFavorite
+            isFavorite={favouriteMeals.some(
+              (favourite) => favourite.idMeal === featuredMeal.idMeal,
+            )}
+            favoriteDisabled={!favouritesLoaded || favouritesSaving}
+            onFavoritePress={() => toggleFavourite(featuredMeal)}
             onPress={() => openRecipe(featuredMeal)}
             style={styles.featuredCard}
           />
@@ -308,6 +342,12 @@ export function HomeScreen({ navigation }: Props) {
           />
         ) : null}
       </View>
+      {favouritesError ? (
+        <ErrorState
+          title="Favourites could not be saved"
+          message={favouritesError}
+        />
+      ) : null}
     </View>
   );
 

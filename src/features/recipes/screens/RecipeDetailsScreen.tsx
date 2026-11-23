@@ -1,7 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import type { SerializedError } from '@reduxjs/toolkit';
 import type { FetchBaseQueryError } from '@reduxjs/toolkit/query';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Image,
   Linking,
@@ -19,6 +19,12 @@ import type { MainStackParamList } from '../../../navigation/types';
 import { EmptyState } from '../../../shared/components/EmptyState';
 import { ErrorState } from '../../../shared/components/ErrorState';
 import { LoadingState } from '../../../shared/components/LoadingState';
+import { OfflineBanner } from '../../../shared/components/OfflineBanner';
+import {
+  loadUserFavourites,
+  toggleUserFavourite,
+} from '../state/favouritesSlice';
+import { useAppDispatch, useAppSelector } from '../../../store/hooks';
 import { theme } from '../../../shared/theme/theme';
 import { useGetRecipeDetailsQuery } from '../services/mealApi';
 import {
@@ -30,6 +36,10 @@ type Props = NativeStackScreenProps<MainStackParamList, 'RecipeDetails'>;
 type QueryError = FetchBaseQueryError | SerializedError | undefined;
 
 function getErrorMessage(error: QueryError): string {
+  if (error && 'status' in error && error.status === 'CUSTOM_ERROR') {
+    return error.error;
+  }
+
   if (error && 'status' in error && error.status === 'FETCH_ERROR') {
     return 'Unable to reach TheMealDB. Check your connection and try again.';
   }
@@ -38,11 +48,43 @@ function getErrorMessage(error: QueryError): string {
 }
 
 export function RecipeDetailsScreen({ navigation, route }: Props) {
+  const dispatch = useAppDispatch();
   const { width } = useWindowDimensions();
-  const [isFavoritePreview, setIsFavoritePreview] = useState(false);
   const [imageFailed, setImageFailed] = useState(false);
   const [tutorialError, setTutorialError] = useState<string | null>(null);
   const recipeId = route.params.recipeId.trim();
+  const user = useAppSelector((state) => state.auth.user);
+  const userId = user ? String(user.id) : null;
+  const isOffline = useAppSelector((state) => state.network.isOffline);
+  const favouritesState = useAppSelector((state) => state.favourites);
+  const favourites = userId
+    ? (favouritesState.byUser[userId] ?? [])
+    : [];
+  const favouritesLoaded =
+    userId !== null && favouritesState.loadedByUser[userId] === true;
+  const favouritesSaving =
+    userId !== null && favouritesState.savingByUser[userId] === true;
+  const favouritesError =
+    userId !== null ? favouritesState.errorByUser[userId] : null;
+  const isFavorite = favourites.some(
+    (favourite) => favourite.idMeal === recipeId,
+  );
+
+  useEffect(() => {
+    if (
+      userId !== null &&
+      favouritesState.loadedByUser[userId] !== true &&
+      favouritesState.loadingByUser[userId] !== true
+    ) {
+      void dispatch(loadUserFavourites(userId));
+    }
+  }, [
+    dispatch,
+    favouritesState.loadedByUser,
+    favouritesState.loadingByUser,
+    userId,
+  ]);
+
   const {
     data: meal,
     isError,
@@ -77,6 +119,7 @@ export function RecipeDetailsScreen({ navigation, route }: Props) {
   if (isLoading) {
     return (
       <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+        {isOffline ? <OfflineBanner /> : null}
         <LoadingState label="Loading recipe details..." />
       </SafeAreaView>
     );
@@ -85,6 +128,7 @@ export function RecipeDetailsScreen({ navigation, route }: Props) {
   if (isError) {
     return (
       <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+        {isOffline ? <OfflineBanner /> : null}
         <ErrorState
           title="Recipe unavailable"
           message={getErrorMessage(error)}
@@ -100,6 +144,7 @@ export function RecipeDetailsScreen({ navigation, route }: Props) {
   if (!meal) {
     return (
       <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+        {isOffline ? <OfflineBanner /> : null}
         <EmptyState
           title="Recipe not found"
           message={
@@ -130,38 +175,49 @@ export function RecipeDetailsScreen({ navigation, route }: Props) {
         showsVerticalScrollIndicator={false}
       >
         <View style={[styles.content, { maxWidth: imageWidth }]}>
+          {isOffline ? <OfflineBanner /> : null}
           <View style={styles.actions}>
             <Pressable
-              onPress={() => setIsFavoritePreview((current) => !current)}
+              onPress={() => {
+                if (userId !== null) {
+                  void dispatch(toggleUserFavourite({ userId, meal }));
+                }
+              }}
+              disabled={
+                userId === null || !favouritesLoaded || favouritesSaving
+              }
               accessibilityRole="button"
               accessibilityLabel={
-                isFavoritePreview
-                  ? 'Remove from favourites preview'
-                  : 'Add to favourites preview'
+                isFavorite
+                  ? `Remove ${meal.strMeal} from favourites`
+                  : `Add ${meal.strMeal} to favourites`
               }
-              accessibilityState={{ selected: isFavoritePreview }}
+              accessibilityState={{
+                selected: isFavorite,
+                disabled:
+                  userId === null || !favouritesLoaded || favouritesSaving,
+              }}
               hitSlop={4}
               style={({ pressed }) => [
                 styles.iconButton,
                 pressed && styles.pressed,
+                (userId === null || !favouritesLoaded || favouritesSaving) &&
+                  styles.disabled,
               ]}
             >
               <Feather
                 name="heart"
                 size={22}
-                color={
-                  isFavoritePreview
-                    ? theme.colors.deepOrange
-                    : theme.colors.darkBrown
-                }
+                color={isFavorite ? theme.colors.deepOrange : theme.colors.darkBrown}
                 accessible={false}
               />
             </Pressable>
           </View>
-
-          <Text style={styles.favoriteNote}>
-            Favourites are a preview and are not saved yet.
-          </Text>
+          {favouritesError ? (
+            <Text style={styles.favoriteError} accessibilityRole="alert">
+              {favouritesError}
+            </Text>
+          ) : null}
 
           {meal.strMealThumb && !imageFailed ? (
             <Image
@@ -361,11 +417,14 @@ const styles = StyleSheet.create({
   pressed: {
     opacity: 0.75,
   },
-  favoriteNote: {
+  favoriteError: {
     marginTop: theme.spacing.xs,
-    color: theme.colors.chocolateBrown,
+    color: theme.colors.deepOrange,
     fontSize: theme.typography.caption,
     textAlign: 'right',
+  },
+  disabled: {
+    opacity: 0.6,
   },
   heroImage: {
     width: '100%',

@@ -1,6 +1,36 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import NetInfo from '@react-native-community/netinfo';
 import { configureStore } from '@reduxjs/toolkit';
 
 import { mealApi } from '../mealApi';
+import networkReducer, { networkStatusChanged } from '../../../../store/networkSlice';
+import { createNetworkStatusHandler } from '../../../../store/networkStatusHandler';
+
+jest.mock('@react-native-async-storage/async-storage', () => {
+  const values = new Map<string, string>();
+
+  return {
+    __esModule: true,
+    default: {
+      clear: jest.fn(async () => values.clear()),
+      getItem: jest.fn(async (key: string) => values.get(key) ?? null),
+      removeItem: jest.fn(async (key: string) => values.delete(key)),
+      setItem: jest.fn(async (key: string, value: string) =>
+        values.set(key, value),
+      ),
+    },
+  };
+});
+
+jest.mock('@react-native-community/netinfo', () => ({
+  __esModule: true,
+  default: {
+    fetch: jest.fn().mockResolvedValue({
+      isConnected: true,
+      isInternetReachable: true,
+    }),
+  },
+}));
 
 jest.mock('react-redux', () => ({
   useDispatch: jest.fn(),
@@ -18,14 +48,21 @@ const meal = {
   strInstructions: 'Cook the chicken and serve.',
 };
 
-function createTestStore() {
-  return configureStore({
+function createTestStore(isOffline = false) {
+  const store = configureStore({
     reducer: {
       [mealApi.reducerPath]: mealApi.reducer,
+      network: networkReducer,
     },
     middleware: (getDefaultMiddleware) =>
       getDefaultMiddleware().concat(mealApi.middleware),
   });
+
+  if (isOffline) {
+    store.dispatch(networkStatusChanged(true));
+  }
+
+  return store;
 }
 
 function jsonResponse(body: unknown): Response {
@@ -41,12 +78,17 @@ describe('mealApi', () => {
   beforeEach(() => {
     jest.useFakeTimers();
     fetchMock = jest.spyOn(globalThis, 'fetch');
+    jest.mocked(NetInfo.fetch).mockResolvedValue({
+      isConnected: true,
+      isInternetReachable: true,
+    } as Awaited<ReturnType<typeof NetInfo.fetch>>);
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     jest.runOnlyPendingTimers();
     jest.useRealTimers();
     jest.restoreAllMocks();
+    await AsyncStorage.clear();
   });
 
   it('searches meals by name through search.php?s=', async () => {
@@ -146,6 +188,142 @@ describe('mealApi', () => {
       await expect(query.unwrap()).resolves.toBeNull();
     } finally {
       query.unsubscribe();
+      store.dispatch(mealApi.util.resetApiState());
+    }
+  });
+
+  it('serves previously fetched recipes when the device is offline', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ meals: [meal] }));
+    const store = createTestStore();
+    const onlineQuery = store.dispatch(
+      mealApi.endpoints.searchMeals.initiate('Teriyaki'),
+    );
+
+    await expect(onlineQuery.unwrap()).resolves.toEqual([meal]);
+    onlineQuery.unsubscribe();
+    store.dispatch(mealApi.util.resetApiState());
+    store.dispatch(networkStatusChanged(true));
+
+    const offlineQuery = store.dispatch(
+      mealApi.endpoints.searchMeals.initiate('Teriyaki'),
+    );
+
+    try {
+      await expect(offlineQuery.unwrap()).resolves.toEqual([meal]);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    } finally {
+      offlineQuery.unsubscribe();
+      store.dispatch(mealApi.util.resetApiState());
+    }
+  });
+
+  it('serves cached recipe details when offline', async () => {
+    const details = {
+      ...meal,
+      strYoutube: 'https://www.youtube.com/watch?v=example',
+      strIngredient1: 'soy sauce',
+      strMeasure1: '3/4 cup',
+    };
+    fetchMock.mockResolvedValueOnce(jsonResponse({ meals: [details] }));
+    const store = createTestStore();
+    const onlineQuery = store.dispatch(
+      mealApi.endpoints.getRecipeDetails.initiate('52772'),
+    );
+
+    await expect(onlineQuery.unwrap()).resolves.toEqual(details);
+    onlineQuery.unsubscribe();
+    store.dispatch(mealApi.util.resetApiState());
+    store.dispatch(networkStatusChanged(true));
+
+    const offlineQuery = store.dispatch(
+      mealApi.endpoints.getRecipeDetails.initiate('52772'),
+    );
+
+    try {
+      await expect(offlineQuery.unwrap()).resolves.toEqual(details);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    } finally {
+      offlineQuery.unsubscribe();
+      store.dispatch(mealApi.util.resetApiState());
+    }
+  });
+
+  it('invalidates recipe and category queries after reconnecting', () => {
+    const store = createTestStore();
+    const dispatchSpy = jest.spyOn(store, 'dispatch');
+    const updateNetworkStatus = createNetworkStatusHandler(store.dispatch);
+
+    updateNetworkStatus({
+      isConnected: true,
+      isInternetReachable: true,
+    });
+    updateNetworkStatus({
+      isConnected: false,
+      isInternetReachable: false,
+    });
+    updateNetworkStatus({
+      isConnected: true,
+      isInternetReachable: true,
+    });
+
+    expect(store.getState().network.isOffline).toBe(false);
+    expect(dispatchSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: mealApi.util.invalidateTags.type,
+        payload: ['Meal', 'Category'],
+      }),
+    );
+
+    store.dispatch(mealApi.util.resetApiState());
+  });
+
+  it('returns a clear error when offline data has not been cached', async () => {
+    const store = createTestStore(true);
+    const query = store.dispatch(
+      mealApi.endpoints.searchMeals.initiate('Teriyaki'),
+    );
+
+    try {
+      await expect(query.unwrap()).rejects.toMatchObject({
+        status: 'CUSTOM_ERROR',
+        error: 'No cached recipe data is available while offline.',
+      });
+      expect(fetchMock).not.toHaveBeenCalled();
+    } finally {
+      query.unsubscribe();
+      store.dispatch(mealApi.util.resetApiState());
+    }
+  });
+
+  it('keeps the previous saved result when the API returns no recipes', async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ meals: [meal] }))
+      .mockResolvedValueOnce(jsonResponse({ meals: null }));
+    const store = createTestStore();
+    const initialQuery = store.dispatch(
+      mealApi.endpoints.searchMeals.initiate('Teriyaki'),
+    );
+
+    await expect(initialQuery.unwrap()).resolves.toEqual([meal]);
+    initialQuery.unsubscribe();
+    store.dispatch(mealApi.util.resetApiState());
+
+    const emptyQuery = store.dispatch(
+      mealApi.endpoints.searchMeals.initiate('Teriyaki'),
+    );
+    await expect(emptyQuery.unwrap()).resolves.toEqual([]);
+    emptyQuery.unsubscribe();
+    store.dispatch(mealApi.util.resetApiState());
+    store.dispatch(networkStatusChanged(true));
+
+    const offlineQuery = store.dispatch(
+      mealApi.endpoints.searchMeals.initiate('Teriyaki'),
+    );
+
+    try {
+      await expect(offlineQuery.unwrap()).resolves.toEqual([meal]);
+    } finally {
+      offlineQuery.unsubscribe();
       store.dispatch(mealApi.util.resetApiState());
     }
   });

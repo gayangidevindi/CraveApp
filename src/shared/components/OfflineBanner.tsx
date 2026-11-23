@@ -8,7 +8,7 @@ export interface OfflineBannerProps {
 }
 
 export function OfflineBanner({
-  message = "You're offline. Some features may be unavailable.",
+  message = "You're offline. Showing saved recipes.",
 }: OfflineBannerProps) {
   return (
     <View
