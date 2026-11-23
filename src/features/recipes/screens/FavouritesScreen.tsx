@@ -1,32 +1,18 @@
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { ScrollView, StyleSheet, Text } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import type { MainTabScreenProps } from '../../../navigation/types';
-import { RecipeCard } from '../../../shared/components/RecipeCard';
+import { EmptyState } from '../../../shared/components/EmptyState';
 import { theme } from '../../../shared/theme/theme';
 
-type Props = MainTabScreenProps<'Favourites'>;
-
-export function FavouritesScreen({ navigation }: Props) {
+export function FavouritesScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.title}>Favourites</Text>
-        <Text style={styles.description}>
-          Sample content for previewing recipe details from this tab.
-        </Text>
-        <RecipeCard
-          title="Sample favourite"
-          category="Development preview"
-          description="Recipe data and saved favourites are not connected yet."
-          prepTime="20 min"
-          isFavorite
-          onPress={() =>
-            navigation.navigate('RecipeDetails', {
-              recipeId: 'sample-favourite-001',
-            })
-          }
-          style={styles.recipeCard}
+        <EmptyState
+          title="No favourites yet"
+          message="Saved recipes will appear here when recipe browsing is available."
+          icon="heart"
         />
       </ScrollView>
     </SafeAreaView>
@@ -46,14 +32,5 @@ const styles = StyleSheet.create({
     color: theme.colors.darkBrown,
     fontSize: theme.typography.title,
     fontWeight: theme.typography.weight.bold,
-  },
-  description: {
-    marginTop: theme.spacing.sm,
-    color: theme.colors.chocolateBrown,
-    fontSize: theme.typography.body,
-    lineHeight: theme.typography.lineHeight.body,
-  },
-  recipeCard: {
-    marginTop: theme.spacing.lg,
   },
 });

@@ -24,6 +24,7 @@ export interface RecipeCardProps {
   imageSource?: ImageSourcePropType;
   imagePlaceholderIcon?: FeatherIconName;
   isFavorite?: boolean;
+  showFavorite?: boolean;
   onPress?: () => void;
   onFavoritePress?: () => void;
   style?: StyleProp<ViewStyle>;
@@ -38,6 +39,7 @@ export function RecipeCard({
   imageSource,
   imagePlaceholderIcon = 'coffee',
   isFavorite = false,
+  showFavorite = false,
   onPress,
   onFavoritePress,
   style,
@@ -133,6 +135,19 @@ export function RecipeCard({
             accessible={false}
           />
         </Pressable>
+      ) : showFavorite ? (
+        <View
+          style={styles.favoriteButton}
+          accessibilityElementsHidden
+          accessible={false}
+        >
+          <Feather
+            name="heart"
+            size={20}
+            color={theme.colors.darkBrown}
+            accessible={false}
+          />
+        </View>
       ) : null}
     </View>
   );
