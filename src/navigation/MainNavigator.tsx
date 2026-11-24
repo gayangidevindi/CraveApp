@@ -4,11 +4,13 @@ import { RecipeDetailsScreen } from '../features/recipes/screens/RecipeDetailsSc
 import { EditProfileScreen } from '../features/profile/screens/EditProfileScreen';
 import type { MainStackParamList } from './types';
 import { MainTabNavigator } from './MainTabNavigator';
-import { theme } from '../shared/theme/theme';
+import { useCraveTheme } from '../shared/theme/useCraveTheme';
 
 const Stack = createNativeStackNavigator<MainStackParamList>();
 
 export function MainNavigator() {
+  const theme = useCraveTheme();
+
   return (
     <Stack.Navigator
       initialRouteName="MainTabs"

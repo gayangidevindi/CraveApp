@@ -17,11 +17,12 @@ import type { RegistrationRequest } from '../types/authTypes';
 import { AuthNotice } from '../components/AuthNotice';
 import { CustomButton } from '../../../shared/components/CustomButton';
 import { CustomInput } from '../../../shared/components/CustomInput';
-import { theme } from '../../../shared/theme/theme';
+import { useCraveThemeStyles } from '../../../shared/theme/useCraveTheme';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'Register'>;
 
 export function RegisterScreen({ navigation }: Props) {
+  const { theme, styles } = useCraveThemeStyles(createStyles);
   const dispatch = useAppDispatch();
   const {
     registrationStatus,
@@ -84,7 +85,7 @@ export function RegisterScreen({ navigation }: Props) {
                 <Feather
                   name="coffee"
                   size={24}
-                  color={theme.colors.darkBrown}
+                  color={theme.colors.onPrimary}
                   accessible={false}
                 />
               </View>
@@ -272,10 +273,11 @@ export function RegisterScreen({ navigation }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(theme: import('../../../shared/theme/theme').CraveTheme) {
+  return StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: theme.colors.warmCream,
+    backgroundColor: theme.colors.background,
   },
   keyboardAvoidingView: {
     flex: 1,
@@ -306,7 +308,7 @@ const styles = StyleSheet.create({
   },
   title: {
     marginTop: theme.spacing.md,
-    color: theme.colors.darkBrown,
+    color: theme.colors.heading,
     fontSize: theme.typography.title,
     fontWeight: theme.typography.weight.bold,
     textAlign: 'center',
@@ -353,4 +355,5 @@ const styles = StyleSheet.create({
     fontWeight: theme.typography.weight.bold,
     textDecorationLine: 'underline',
   },
-});
+  });
+}

@@ -1,6 +1,6 @@
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
-import { theme } from '../theme/theme';
+import { useCraveThemeStyles } from '../theme/useCraveTheme';
 
 export interface LoadingStateProps {
   label?: string;
@@ -11,6 +11,8 @@ export function LoadingState({
   label = 'Loading...',
   message,
 }: LoadingStateProps) {
+  const { theme, styles } = useCraveThemeStyles(createStyles);
+
   return (
     <View
       style={styles.container}
@@ -29,7 +31,8 @@ export function LoadingState({
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(theme: import('../theme/theme').CraveTheme) {
+  return StyleSheet.create({
   container: {
     width: '100%',
     alignItems: 'center',
@@ -50,4 +53,5 @@ const styles = StyleSheet.create({
     lineHeight: theme.typography.lineHeight.caption,
     textAlign: 'center',
   },
-});
+  });
+}

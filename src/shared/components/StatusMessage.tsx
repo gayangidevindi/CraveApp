@@ -7,7 +7,7 @@ import {
 } from 'react-native';
 
 import { CustomButton, type CustomButtonVariant } from './CustomButton';
-import { theme } from '../theme/theme';
+import { useCraveThemeStyles } from '../theme/useCraveTheme';
 
 type FeatherIconName = ComponentProps<typeof Feather>['name'];
 
@@ -28,6 +28,8 @@ export function StatusMessage({
   onAction,
   variant = 'secondary',
 }: StatusMessageProps) {
+  const { theme, styles } = useCraveThemeStyles(createStyles);
+
   return (
     <View style={styles.container}>
       <View style={styles.iconContainer}>
@@ -52,7 +54,8 @@ export function StatusMessage({
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(theme: import('../theme/theme').CraveTheme) {
+  return StyleSheet.create({
   container: {
     width: '100%',
     maxWidth: 440,
@@ -68,10 +71,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: theme.radius.pill,
-    backgroundColor: theme.colors.softYellow,
+    backgroundColor: theme.colors.elevatedSurface,
   },
   title: {
-    color: theme.colors.darkBrown,
+    color: theme.colors.heading,
     fontSize: theme.typography.heading,
     fontWeight: theme.typography.weight.bold,
     lineHeight: theme.typography.lineHeight.heading,
@@ -88,4 +91,5 @@ const styles = StyleSheet.create({
     minWidth: 144,
     marginTop: theme.spacing.sm,
   },
-});
+  });
+}

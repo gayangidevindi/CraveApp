@@ -31,6 +31,14 @@
           "cameraPermission": "CraveApp uses your camera to take a profile picture.",
           "microphonePermission": false
         }
+      ],
+      "expo-splash-screen",
+      [
+        "expo-navigation-bar",
+        {
+          "enforceContrast": false,
+          "style": "light"
+        }
       ]
     ]
   }

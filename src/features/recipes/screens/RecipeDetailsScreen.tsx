@@ -25,7 +25,7 @@ import {
   toggleUserFavourite,
 } from '../state/favouritesSlice';
 import { useAppDispatch, useAppSelector } from '../../../store/hooks';
-import { theme } from '../../../shared/theme/theme';
+import { useCraveThemeStyles } from '../../../shared/theme/useCraveTheme';
 import { useGetRecipeDetailsQuery } from '../services/mealApi';
 import {
   parseRecipeIngredients,
@@ -48,6 +48,7 @@ function getErrorMessage(error: QueryError): string {
 }
 
 export function RecipeDetailsScreen({ navigation, route }: Props) {
+  const { theme, styles } = useCraveThemeStyles(createStyles);
   const dispatch = useAppDispatch();
   const { width } = useWindowDimensions();
   const [imageFailed, setImageFailed] = useState(false);
@@ -361,7 +362,7 @@ export function RecipeDetailsScreen({ navigation, route }: Props) {
                 <Feather
                   name="youtube"
                   size={19}
-                  color={theme.colors.white}
+                  color={theme.colors.onPrimary}
                   accessible={false}
                 />
                 <Text style={styles.tutorialButtonText}>Watch tutorial</Text>
@@ -383,10 +384,11 @@ export function RecipeDetailsScreen({ navigation, route }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(theme: import('../../../shared/theme/theme').CraveTheme) {
+  return StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: theme.colors.warmCream,
+    backgroundColor: theme.colors.background,
   },
   scrollContent: {
     flexGrow: 1,
@@ -411,7 +413,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: theme.radius.pill,
-    backgroundColor: theme.colors.white,
+    backgroundColor: theme.colors.card,
     ...theme.shadows.card,
   },
   pressed: {
@@ -442,7 +444,7 @@ const styles = StyleSheet.create({
   },
   title: {
     marginTop: theme.spacing.lg,
-    color: theme.colors.darkBrown,
+    color: theme.colors.heading,
     fontSize: theme.typography.title,
     fontWeight: theme.typography.weight.bold,
     lineHeight: theme.typography.lineHeight.title,
@@ -477,7 +479,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     marginBottom: theme.spacing.md,
-    color: theme.colors.darkBrown,
+    color: theme.colors.heading,
     fontSize: theme.typography.heading,
     fontWeight: theme.typography.weight.bold,
   },
@@ -485,7 +487,7 @@ const styles = StyleSheet.create({
     gap: theme.spacing.sm,
     padding: theme.spacing.md,
     borderRadius: theme.radius.lg,
-    backgroundColor: theme.colors.white,
+    backgroundColor: theme.colors.card,
     ...theme.shadows.card,
   },
   ingredientRow: {
@@ -517,7 +519,7 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.primary,
   },
   stepNumberText: {
-    color: theme.colors.white,
+    color: theme.colors.onPrimary,
     fontSize: theme.typography.caption,
     fontWeight: theme.typography.weight.bold,
   },
@@ -550,7 +552,7 @@ const styles = StyleSheet.create({
     ...theme.shadows.button,
   },
   tutorialButtonText: {
-    color: theme.colors.white,
+    color: theme.colors.onPrimary,
     fontSize: theme.typography.body,
     fontWeight: theme.typography.weight.bold,
   },
@@ -567,4 +569,5 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.caption,
     textAlign: 'center',
   },
-});
+  });
+}

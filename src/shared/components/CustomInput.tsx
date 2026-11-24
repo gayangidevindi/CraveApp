@@ -12,7 +12,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 
-import { theme } from '../theme/theme';
+import { useCraveThemeStyles } from '../theme/useCraveTheme';
 
 type FeatherIconName = ComponentProps<typeof Feather>['name'];
 
@@ -40,9 +40,11 @@ export function CustomInput({
   accessibilityHint,
   editable = true,
   multiline = false,
-  placeholderTextColor = theme.colors.chocolateBrown,
+  placeholderTextColor,
   ...textInputProps
 }: CustomInputProps) {
+  const { theme, styles } = useCraveThemeStyles(createStyles);
+
   return (
     <View style={[styles.field, containerStyle]}>
       <Text style={styles.label}>{label}</Text>
@@ -58,7 +60,7 @@ export function CustomInput({
           <Feather
             name={icon}
             size={18}
-            color={theme.colors.chocolateBrown}
+            color={theme.colors.secondaryText}
             accessible={false}
           />
         ) : null}
@@ -68,7 +70,9 @@ export function CustomInput({
           accessibilityHint={accessibilityHint ?? error}
           editable={editable}
           multiline={multiline}
-          placeholderTextColor={placeholderTextColor}
+          placeholderTextColor={
+            placeholderTextColor ?? theme.colors.secondaryText
+          }
           style={[
             styles.input,
             multiline && styles.multilineInput,
@@ -87,7 +91,7 @@ export function CustomInput({
             <Feather
               name={rightIcon}
               size={18}
-              color={theme.colors.chocolateBrown}
+              color={theme.colors.secondaryText}
               accessible={false}
             />
           </Pressable>
@@ -110,13 +114,14 @@ export function CustomInput({
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(theme: import('../theme/theme').CraveTheme) {
+  return StyleSheet.create({
   field: {
     width: '100%',
     gap: theme.spacing.xs,
   },
   label: {
-    color: theme.colors.darkBrown,
+    color: theme.colors.heading,
     fontSize: theme.typography.label,
     fontWeight: theme.typography.weight.semibold,
     lineHeight: theme.typography.lineHeight.body,
@@ -128,9 +133,9 @@ const styles = StyleSheet.create({
     gap: theme.spacing.sm,
     paddingHorizontal: theme.spacing.md,
     borderWidth: 1,
-    borderColor: theme.colors.chocolateBrown,
+    borderColor: theme.colors.border,
     borderRadius: theme.radius.md,
-    backgroundColor: theme.colors.white,
+    backgroundColor: theme.colors.card,
   },
   multilineContainer: {
     alignItems: 'flex-start',
@@ -173,4 +178,5 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.caption,
     lineHeight: theme.typography.lineHeight.caption,
   },
-});
+  });
+}

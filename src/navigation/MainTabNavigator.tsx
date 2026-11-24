@@ -6,7 +6,7 @@ import { FavouritesScreen } from '../features/recipes/screens/FavouritesScreen';
 import { HomeScreen } from '../features/recipes/screens/HomeScreen';
 import { ProfileScreen } from '../features/profile/screens/ProfileScreen';
 import type { MainTabParamList } from './types';
-import { theme } from '../shared/theme/theme';
+import { useCraveTheme } from '../shared/theme/useCraveTheme';
 
 type FeatherIconName = ComponentProps<typeof Feather>['name'];
 
@@ -18,6 +18,8 @@ const tabIcons: Record<keyof MainTabParamList, FeatherIconName> = {
 };
 
 export function MainTabNavigator() {
+  const theme = useCraveTheme();
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -33,8 +35,8 @@ export function MainTabNavigator() {
           minHeight: 60,
           paddingTop: theme.spacing.xs,
           paddingBottom: theme.spacing.xs,
-          backgroundColor: theme.colors.white,
-          borderTopColor: theme.colors.softYellow,
+          backgroundColor: theme.colors.card,
+          borderTopColor: theme.colors.border,
         },
         tabBarIcon: ({ color, size }) => (
           <Feather

@@ -15,7 +15,7 @@ import { LoadingState } from '../../../shared/components/LoadingState';
 import { OfflineBanner } from '../../../shared/components/OfflineBanner';
 import { RecipeCard } from '../../../shared/components/RecipeCard';
 import { useAppDispatch, useAppSelector } from '../../../store/hooks';
-import { theme } from '../../../shared/theme/theme';
+import { useCraveThemeStyles } from '../../../shared/theme/useCraveTheme';
 import {
   loadUserFavourites,
   toggleUserFavourite,
@@ -24,6 +24,7 @@ import {
 type Props = MainTabScreenProps<'Favourites'>;
 
 export function FavouritesScreen({ navigation }: Props) {
+  const { styles } = useCraveThemeStyles(createStyles);
   const dispatch = useAppDispatch();
   const { width } = useWindowDimensions();
   const user = useAppSelector((state) => state.auth.user);
@@ -137,10 +138,11 @@ export function FavouritesScreen({ navigation }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(theme: import('../../../shared/theme/theme').CraveTheme) {
+  return StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: theme.colors.warmCream,
+    backgroundColor: theme.colors.background,
   },
   content: {
     flexGrow: 1,
@@ -149,7 +151,7 @@ const styles = StyleSheet.create({
   },
   title: {
     marginTop: theme.spacing.md,
-    color: theme.colors.darkBrown,
+    color: theme.colors.heading,
     fontSize: theme.typography.title,
     fontWeight: theme.typography.weight.bold,
   },
@@ -169,4 +171,5 @@ const styles = StyleSheet.create({
     width: 'auto',
     flex: 1,
   },
-});
+  });
+}

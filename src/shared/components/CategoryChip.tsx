@@ -9,7 +9,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 
-import { theme } from '../theme/theme';
+import { useCraveThemeStyles } from '../theme/useCraveTheme';
 
 type FeatherIconName = ComponentProps<typeof Feather>['name'];
 
@@ -28,6 +28,8 @@ export function CategoryChip({
   onPress,
   style,
 }: CategoryChipProps) {
+  const { theme, styles } = useCraveThemeStyles(createStyles);
+
   return (
     <Pressable
       onPress={onPress}
@@ -46,12 +48,19 @@ export function CategoryChip({
         <Feather
           name={icon}
           size={16}
-          color={theme.colors.darkBrown}
+          color={selected ? theme.colors.onPrimary : theme.colors.darkBrown}
           accessible={false}
         />
       ) : null}
       <Text
-        style={styles.label}
+        style={[
+          styles.label,
+          {
+            color: selected
+              ? theme.colors.onPrimary
+              : theme.colors.secondaryText,
+          },
+        ]}
         numberOfLines={1}
         ellipsizeMode="tail"
       >
@@ -71,7 +80,8 @@ export function CategoryChip({
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(theme: import('../theme/theme').CraveTheme) {
+  return StyleSheet.create({
   chip: {
     minHeight: 48,
     maxWidth: '100%',
@@ -88,15 +98,14 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.primary,
   },
   unselected: {
-    borderColor: theme.colors.softYellow,
-    backgroundColor: theme.colors.softYellow,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.elevatedSurface,
   },
   pressed: {
     transform: [{ scale: 0.97 }],
   },
   label: {
     flexShrink: 1,
-    color: theme.colors.chocolateBrown,
     fontSize: theme.typography.label,
     fontWeight: theme.typography.weight.semibold,
   },
@@ -106,6 +115,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: theme.radius.pill,
-    backgroundColor: theme.colors.softYellow,
+    backgroundColor: theme.colors.card,
   },
 });
+}

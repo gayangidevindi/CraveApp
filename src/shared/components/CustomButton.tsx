@@ -11,7 +11,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 
-import { theme } from '../theme/theme';
+import { useCraveThemeStyles } from '../theme/useCraveTheme';
 
 export type CustomButtonVariant = 'primary' | 'secondary' | 'outline';
 type FeatherIconName = ComponentProps<typeof Feather>['name'];
@@ -39,8 +39,10 @@ export function CustomButton({
   textStyle,
   ...pressableProps
 }: CustomButtonProps) {
+  const { theme, styles } = useCraveThemeStyles(createStyles);
   const isDisabled = disabled || loading;
-  const textColor = theme.colors.darkBrown;
+  const textColor =
+    variant === 'primary' ? theme.colors.onPrimary : theme.colors.darkBrown;
 
   const buttonIcon = icon ? (
     <Feather
@@ -71,7 +73,7 @@ export function CustomButton({
     >
       {loading ? (
         <ActivityIndicator
-          color={theme.colors.darkBrown}
+          color={textColor}
           accessible={false}
         />
       ) : (
@@ -80,6 +82,7 @@ export function CustomButton({
           <Text
             style={[
               styles.text,
+              { color: textColor },
               isDisabled && styles.disabledText,
               textStyle,
             ]}
@@ -93,7 +96,8 @@ export function CustomButton({
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(theme: import('../theme/theme').CraveTheme) {
+  return StyleSheet.create({
   button: {
     minHeight: 48,
     flexDirection: 'row',
@@ -115,7 +119,7 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.softYellow,
   },
   outline: {
-    backgroundColor: theme.colors.white,
+    backgroundColor: theme.colors.card,
     borderColor: theme.colors.deepOrange,
   },
   disabled: {
@@ -128,7 +132,6 @@ const styles = StyleSheet.create({
     transform: [{ scale: 0.98 }],
   },
   text: {
-    color: theme.colors.darkBrown,
     fontSize: theme.typography.body,
     fontWeight: theme.typography.weight.semibold,
     lineHeight: theme.typography.lineHeight.body,
@@ -138,3 +141,4 @@ const styles = StyleSheet.create({
     color: theme.colors.chocolateBrown,
   },
 });
+}

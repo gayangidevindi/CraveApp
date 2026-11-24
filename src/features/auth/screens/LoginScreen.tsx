@@ -13,11 +13,12 @@ import { useAppDispatch, useAppSelector } from '../../../store/hooks';
 import { AuthNotice } from '../components/AuthNotice';
 import { CustomButton } from '../../../shared/components/CustomButton';
 import { CustomInput } from '../../../shared/components/CustomInput';
-import { theme } from '../../../shared/theme/theme';
+import { useCraveThemeStyles } from '../../../shared/theme/useCraveTheme';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'Login'>;
 
 export function LoginScreen({ navigation }: Props) {
+  const { theme, styles } = useCraveThemeStyles(createStyles);
   const dispatch = useAppDispatch();
   const { status, error } = useAppSelector((state) => state.auth);
   const [passwordVisible, setPasswordVisible] = useState(false);
@@ -56,7 +57,7 @@ export function LoginScreen({ navigation }: Props) {
                 <Feather
                   name="coffee"
                   size={28}
-                  color={theme.colors.darkBrown}
+                  color={theme.colors.onPrimary}
                   accessible={false}
                 />
               </View>
@@ -169,10 +170,11 @@ export function LoginScreen({ navigation }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(theme: import('../../../shared/theme/theme').CraveTheme) {
+  return StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: theme.colors.warmCream,
+    backgroundColor: theme.colors.background,
   },
   keyboardAvoidingView: {
     flex: 1,
@@ -202,7 +204,7 @@ const styles = StyleSheet.create({
   },
   brandName: {
     marginTop: theme.spacing.sm,
-    color: theme.colors.darkBrown,
+    color: theme.colors.heading,
     fontSize: theme.typography.heading,
     fontWeight: theme.typography.weight.bold,
   },
@@ -215,7 +217,7 @@ const styles = StyleSheet.create({
     gap: theme.spacing.xs,
   },
   title: {
-    color: theme.colors.darkBrown,
+    color: theme.colors.heading,
     fontSize: theme.typography.title,
     fontWeight: theme.typography.weight.bold,
   },
@@ -259,4 +261,5 @@ const styles = StyleSheet.create({
     fontWeight: theme.typography.weight.bold,
     textDecorationLine: 'underline',
   },
-});
+  });
+}

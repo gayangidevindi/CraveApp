@@ -6,6 +6,7 @@ import profileReducer from '../features/profile/state/profileSlice';
 import appReducer from './appSlice';
 import authReducer from './authSlice';
 import networkReducer from './networkSlice';
+import themeReducer from '../shared/theme/themeSlice';
 
 export const store = configureStore({
   reducer: {
@@ -14,6 +15,7 @@ export const store = configureStore({
     favourites: favouritesReducer,
     profile: profileReducer,
     network: networkReducer,
+    theme: themeReducer,
     [mealApi.reducerPath]: mealApi.reducer,
   },
   middleware: (getDefaultMiddleware) =>

@@ -33,11 +33,12 @@ import { CustomButton } from '../../../shared/components/CustomButton';
 import { ErrorState } from '../../../shared/components/ErrorState';
 import { LoadingState } from '../../../shared/components/LoadingState';
 import { OfflineBanner } from '../../../shared/components/OfflineBanner';
-import { theme } from '../../../shared/theme/theme';
+import { useCraveThemeStyles } from '../../../shared/theme/useCraveTheme';
 import {
   updateUserProfile,
   loadUserProfile,
 } from '../state/profileSlice';
+import { setThemeMode } from '../../../shared/theme/themeSlice';
 import {
   createDefaultUserProfile,
   MAX_PROFILE_IMAGE_DATA_URI_LENGTH,
@@ -66,6 +67,8 @@ interface DetailRowProps {
 }
 
 function DetailRow({ icon, label, value }: DetailRowProps) {
+  const { theme, styles } = useCraveThemeStyles(createStyles);
+
   return (
     <View style={styles.detailRow}>
       <View style={styles.detailIcon}>
@@ -99,6 +102,8 @@ function SettingsRow({
   onPress,
   trailing,
 }: SettingsRowProps) {
+  const { theme, styles } = useCraveThemeStyles(createStyles);
+
   return (
     <Pressable
       onPress={onPress}
@@ -134,6 +139,7 @@ function SettingsRow({
 }
 
 export function ProfileScreen({ navigation }: Props) {
+  const { theme, styles } = useCraveThemeStyles(createStyles);
   const dispatch = useAppDispatch();
   const { width } = useWindowDimensions();
   const { user, isSigningOut, signOutError } = useAppSelector(
@@ -142,6 +148,8 @@ export function ProfileScreen({ navigation }: Props) {
   const profileState = useAppSelector((state) => state.profile);
   const favouritesState = useAppSelector((state) => state.favourites);
   const isOffline = useAppSelector((state) => state.network.isOffline);
+  const themePreference = useAppSelector((state) => state.theme);
+  const isDarkMode = themePreference.mode === 'dark';
   const userId = user ? String(user.id) : null;
   const profile =
     userId !== null ? profileState.byUser[userId] : undefined;
@@ -448,14 +456,14 @@ export function ProfileScreen({ navigation }: Props) {
                 {saving || isPickingPhoto ? (
                   <ActivityIndicator
                     size="small"
-                    color={theme.colors.white}
+                    color={theme.colors.onPrimary}
                     accessible={false}
                   />
                 ) : (
                   <Feather
                     name="camera"
                     size={15}
-                    color={theme.colors.white}
+                    color={theme.colors.onPrimary}
                     accessible={false}
                   />
                 )}
@@ -475,6 +483,64 @@ export function ProfileScreen({ navigation }: Props) {
               onPress={() => navigation.navigate('EditProfile')}
               style={styles.editButton}
             />
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Appearance</Text>
+            <View style={styles.appearanceRow}>
+              <View style={styles.settingsIcon}>
+                <Feather
+                  name="moon"
+                  size={19}
+                  color={theme.colors.deepOrange}
+                  accessible={false}
+                />
+              </View>
+              <View style={styles.settingsCopy}>
+                <Text style={styles.settingsLabel}>Dark Mode</Text>
+                <Text style={styles.settingsDescription}>
+                  Switch to a darker appearance.
+                </Text>
+              </View>
+              <Pressable
+                accessibilityLabel="Dark Mode"
+                accessibilityHint="Switch to a darker appearance."
+                accessibilityRole="switch"
+                aria-checked={isDarkMode}
+                aria-disabled={themePreference.isSaving}
+                accessibilityState={{
+                  checked: isDarkMode,
+                  disabled: themePreference.isSaving,
+                }}
+                disabled={themePreference.isSaving}
+                onPress={() => {
+                  void dispatch(
+                    setThemeMode(isDarkMode ? 'light' : 'dark'),
+                  );
+                }}
+                style={({ pressed }) => [
+                  styles.themeSwitch,
+                  pressed && styles.switchPressed,
+                ]}
+              >
+                <View
+                  style={[
+                    styles.switchTrack,
+                    isDarkMode && styles.switchTrackEnabled,
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.switchThumb,
+                      isDarkMode && styles.switchThumbEnabled,
+                    ]}
+                  />
+                </View>
+              </Pressable>
+            </View>
+            {themePreference.error ? (
+              <AuthNotice message={themePreference.error} />
+            ) : null}
           </View>
 
           <View style={styles.section}>
@@ -673,10 +739,11 @@ export function ProfileScreen({ navigation }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(theme: import('../../../shared/theme/theme').CraveTheme) {
+  return StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: theme.colors.warmCream,
+    backgroundColor: theme.colors.background,
   },
   scrollContent: {
     flexGrow: 1,
@@ -690,7 +757,7 @@ const styles = StyleSheet.create({
     gap: theme.spacing.md,
   },
   pageTitle: {
-    color: theme.colors.darkBrown,
+    color: theme.colors.heading,
     fontSize: theme.typography.title,
     fontWeight: theme.typography.weight.bold,
   },
@@ -699,7 +766,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: theme.spacing.lg,
     borderRadius: theme.radius.lg,
-    backgroundColor: theme.colors.white,
+    backgroundColor: theme.colors.card,
     ...theme.shadows.card,
   },
   avatarButton: {
@@ -718,7 +785,7 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: theme.colors.primary,
     borderRadius: theme.radius.pill,
-    backgroundColor: theme.colors.softYellow,
+    backgroundColor: theme.colors.elevatedSurface,
   },
   avatarImage: {
     width: '100%',
@@ -733,7 +800,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
-    borderColor: theme.colors.white,
+    borderColor: theme.colors.card,
     borderRadius: theme.radius.pill,
     backgroundColor: theme.colors.deepOrange,
   },
@@ -744,7 +811,7 @@ const styles = StyleSheet.create({
   },
   name: {
     marginTop: theme.spacing.md,
-    color: theme.colors.darkBrown,
+    color: theme.colors.heading,
     fontSize: theme.typography.heading,
     fontWeight: theme.typography.weight.bold,
     textAlign: 'center',
@@ -776,7 +843,7 @@ const styles = StyleSheet.create({
     gap: theme.spacing.sm,
   },
   sectionTitle: {
-    color: theme.colors.darkBrown,
+    color: theme.colors.heading,
     fontSize: theme.typography.heading,
     fontWeight: theme.typography.weight.bold,
   },
@@ -784,7 +851,7 @@ const styles = StyleSheet.create({
     gap: theme.spacing.md,
     padding: theme.spacing.md,
     borderRadius: theme.radius.lg,
-    backgroundColor: theme.colors.white,
+    backgroundColor: theme.colors.card,
     ...theme.shadows.card,
   },
   detailRow: {
@@ -799,7 +866,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: theme.radius.pill,
-    backgroundColor: theme.colors.softYellow,
+    backgroundColor: theme.colors.elevatedSurface,
   },
   detailCopy: {
     flex: 1,
@@ -821,7 +888,50 @@ const styles = StyleSheet.create({
     gap: theme.spacing.sm,
     padding: theme.spacing.md,
     borderRadius: theme.radius.md,
-    backgroundColor: theme.colors.white,
+    backgroundColor: theme.colors.card,
+  },
+  appearanceRow: {
+    minHeight: 76,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+    padding: theme.spacing.md,
+    borderRadius: theme.radius.md,
+    backgroundColor: theme.colors.card,
+  },
+  themeSwitch: {
+    width: 56,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: theme.spacing.xs,
+  },
+  switchTrack: {
+    width: 48,
+    height: 28,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    padding: 4,
+    borderRadius: theme.radius.pill,
+    backgroundColor: theme.colors.border,
+  },
+  switchTrackEnabled: {
+    justifyContent: 'flex-end',
+    backgroundColor: theme.colors.deepOrange,
+  },
+  switchThumb: {
+    width: 20,
+    height: 20,
+    borderRadius: theme.radius.pill,
+    backgroundColor: theme.colors.card,
+    ...theme.shadows.card,
+  },
+  switchThumbEnabled: {
+    backgroundColor: theme.colors.goldenYellow,
+  },
+  switchPressed: {
+    opacity: 0.8,
   },
   settingsIcon: {
     width: 40,
@@ -829,7 +939,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: theme.radius.pill,
-    backgroundColor: theme.colors.softYellow,
+    backgroundColor: theme.colors.elevatedSurface,
   },
   settingsCopy: {
     flex: 1,
@@ -856,7 +966,7 @@ const styles = StyleSheet.create({
     gap: theme.spacing.xs,
     padding: theme.spacing.md,
     borderRadius: theme.radius.md,
-    backgroundColor: theme.colors.softYellow,
+    backgroundColor: theme.colors.elevatedSurface,
   },
   preferenceTitle: {
     color: theme.colors.darkBrown,
@@ -876,7 +986,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: theme.spacing.lg,
-    backgroundColor: 'rgba(41, 37, 36, 0.52)',
+    backgroundColor: theme.colors.overlay,
   },
   modalCard: {
     width: '100%',
@@ -884,11 +994,11 @@ const styles = StyleSheet.create({
     gap: theme.spacing.md,
     padding: theme.spacing.lg,
     borderRadius: theme.radius.lg,
-    backgroundColor: theme.colors.warmCream,
+    backgroundColor: theme.colors.elevatedSurface,
     ...theme.shadows.floating,
   },
   modalTitle: {
-    color: theme.colors.darkBrown,
+    color: theme.colors.heading,
     fontSize: theme.typography.heading,
     fontWeight: theme.typography.weight.bold,
   },
@@ -897,4 +1007,5 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.body,
     lineHeight: theme.typography.lineHeight.body,
   },
-});
+  });
+}

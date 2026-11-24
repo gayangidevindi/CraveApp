@@ -21,7 +21,7 @@ import { CustomInput } from '../../../shared/components/CustomInput';
 import { ErrorState } from '../../../shared/components/ErrorState';
 import { LoadingState } from '../../../shared/components/LoadingState';
 import { OfflineBanner } from '../../../shared/components/OfflineBanner';
-import { theme } from '../../../shared/theme/theme';
+import { useCraveThemeStyles } from '../../../shared/theme/useCraveTheme';
 import { AuthNotice } from '../../auth/components/AuthNotice';
 import {
   loadUserProfile,
@@ -74,6 +74,8 @@ function ChoiceChips<T extends string>({
   selected,
   onToggle,
 }: ChoiceChipsProps<T>) {
+  const { styles } = useCraveThemeStyles(createStyles);
+
   return (
     <View style={styles.preferenceField}>
       <Text style={styles.fieldLabel}>{label}</Text>
@@ -109,6 +111,7 @@ function ChoiceChips<T extends string>({
 }
 
 export function EditProfileScreen({ navigation }: Props) {
+  const { styles } = useCraveThemeStyles(createStyles);
   const dispatch = useAppDispatch();
   const { width } = useWindowDimensions();
   const user = useAppSelector((state) => state.auth.user);
@@ -437,10 +440,11 @@ export function EditProfileScreen({ navigation }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(theme: import('../../../shared/theme/theme').CraveTheme) {
+  return StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: theme.colors.warmCream,
+    backgroundColor: theme.colors.background,
   },
   keyboardAvoidingView: {
     flex: 1,
@@ -465,7 +469,7 @@ const styles = StyleSheet.create({
     gap: theme.spacing.sm,
   },
   fieldLabel: {
-    color: theme.colors.darkBrown,
+    color: theme.colors.heading,
     fontSize: theme.typography.label,
     fontWeight: theme.typography.weight.semibold,
     lineHeight: theme.typography.lineHeight.body,
@@ -481,13 +485,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: theme.spacing.md,
     borderWidth: 1,
-    borderColor: theme.colors.chocolateBrown,
+    borderColor: theme.colors.border,
     borderRadius: theme.radius.pill,
-    backgroundColor: theme.colors.white,
+    backgroundColor: theme.colors.card,
   },
   selectedChip: {
     borderColor: theme.colors.deepOrange,
-    backgroundColor: theme.colors.softYellow,
+    backgroundColor: theme.colors.elevatedSurface,
   },
   chipText: {
     color: theme.colors.darkBrown,
@@ -502,4 +506,5 @@ const styles = StyleSheet.create({
     width: '100%',
     marginTop: theme.spacing.sm,
   },
-});
+  });
+}

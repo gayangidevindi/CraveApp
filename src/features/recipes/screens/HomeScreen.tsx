@@ -34,7 +34,7 @@ import {
   useSearchMealsQuery,
   type Meal,
 } from '../services/mealApi';
-import { theme } from '../../../shared/theme/theme';
+import { useCraveThemeStyles } from '../../../shared/theme/useCraveTheme';
 
 type Props = MainTabScreenProps<'Home'>;
 type QueryError = FetchBaseQueryError | SerializedError | undefined;
@@ -69,6 +69,7 @@ function getErrorMessage(error: QueryError): string {
 }
 
 export function HomeScreen({ navigation }: Props) {
+  const { theme, styles } = useCraveThemeStyles(createStyles);
   const dispatch = useAppDispatch();
   const user = useAppSelector((state) => state.auth.user);
   const networkOffline = useAppSelector((state) => state.network.isOffline);
@@ -395,11 +396,13 @@ interface CustomSearchInputProps {
 }
 
 function CustomSearchInput({ value, onChangeText }: CustomSearchInputProps) {
+  const { theme, styles } = useCraveThemeStyles(createStyles);
+
   return (
     <TextInput
       accessibilityLabel="Search recipes"
       placeholder="Search recipes by name"
-      placeholderTextColor={theme.colors.chocolateBrown}
+      placeholderTextColor={theme.colors.secondaryText}
       value={value}
       onChangeText={onChangeText}
       autoCapitalize="none"
@@ -410,10 +413,11 @@ function CustomSearchInput({ value, onChangeText }: CustomSearchInputProps) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(theme: import('../../../shared/theme/theme').CraveTheme) {
+  return StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: theme.colors.warmCream,
+    backgroundColor: theme.colors.background,
   },
   listContent: {
     flexGrow: 1,
@@ -436,7 +440,7 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.body,
   },
   userName: {
-    color: theme.colors.darkBrown,
+    color: theme.colors.heading,
     fontSize: theme.typography.title,
     fontWeight: theme.typography.weight.bold,
   },
@@ -466,9 +470,9 @@ const styles = StyleSheet.create({
     marginTop: theme.spacing.sm,
     paddingLeft: theme.spacing.md,
     borderWidth: 1,
-    borderColor: theme.colors.chocolateBrown,
+    borderColor: theme.colors.border,
     borderRadius: theme.radius.md,
-    backgroundColor: theme.colors.white,
+    backgroundColor: theme.colors.card,
   },
   searchTextInput: {
     minHeight: 50,
@@ -479,7 +483,7 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.body,
   },
   sectionTitle: {
-    color: theme.colors.darkBrown,
+    color: theme.colors.heading,
     fontSize: theme.typography.heading,
     fontWeight: theme.typography.weight.bold,
   },
@@ -532,4 +536,5 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.caption,
     textAlign: 'center',
   },
-});
+  });
+}

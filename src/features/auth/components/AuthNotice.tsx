@@ -1,7 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { theme } from '../../../shared/theme/theme';
+import { useCraveThemeStyles } from '../../../shared/theme/useCraveTheme';
 
 interface AuthNoticeProps {
   message: string;
@@ -9,6 +9,8 @@ interface AuthNoticeProps {
 }
 
 export function AuthNotice({ message, tone = 'error' }: AuthNoticeProps) {
+  const { theme, styles } = useCraveThemeStyles(createStyles);
+
   return (
     <View
       style={[styles.container, tone === 'success' && styles.successContainer]}
@@ -25,7 +27,8 @@ export function AuthNotice({ message, tone = 'error' }: AuthNoticeProps) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(theme: import('../../../shared/theme/theme').CraveTheme) {
+  return StyleSheet.create({
   container: {
     width: '100%',
     flexDirection: 'row',
@@ -36,7 +39,7 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.softYellow,
   },
   successContainer: {
-    backgroundColor: theme.colors.warmCream,
+    backgroundColor: theme.colors.card,
   },
   message: {
     flex: 1,
@@ -44,4 +47,5 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.caption,
     lineHeight: theme.typography.lineHeight.body,
   },
-});
+  });
+}

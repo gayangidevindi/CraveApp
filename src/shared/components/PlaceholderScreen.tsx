@@ -3,7 +3,7 @@ import type { ComponentProps, ReactNode } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { theme } from '../theme/theme';
+import { useCraveThemeStyles } from '../theme/useCraveTheme';
 
 type FeatherIconName = ComponentProps<typeof Feather>['name'];
 
@@ -20,6 +20,8 @@ export function PlaceholderScreen({
   icon,
   children,
 }: PlaceholderScreenProps) {
+  const { theme, styles } = useCraveThemeStyles(createStyles);
+
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <View style={styles.container}>
@@ -39,7 +41,8 @@ export function PlaceholderScreen({
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(theme: import('../theme/theme').CraveTheme) {
+  return StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: theme.colors.warmCream,
@@ -58,11 +61,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: theme.radius.pill,
-    backgroundColor: theme.colors.softYellow,
+    backgroundColor: theme.colors.elevatedSurface,
   },
   title: {
     marginTop: theme.spacing.lg,
-    color: theme.colors.darkBrown,
+    color: theme.colors.heading,
     fontSize: theme.typography.heading,
     fontWeight: theme.typography.weight.bold,
     textAlign: 'center',
@@ -75,4 +78,5 @@ const styles = StyleSheet.create({
     lineHeight: theme.typography.lineHeight.body,
     textAlign: 'center',
   },
-});
+  });
+}

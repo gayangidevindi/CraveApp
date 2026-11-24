@@ -11,7 +11,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 
-import { theme } from '../theme/theme';
+import { useCraveThemeStyles } from '../theme/useCraveTheme';
 
 type FeatherIconName = ComponentProps<typeof Feather>['name'];
 
@@ -46,6 +46,8 @@ export function RecipeCard({
   onFavoritePress,
   style,
 }: RecipeCardProps) {
+  const { theme, styles } = useCraveThemeStyles(createStyles);
+
   return (
     <View style={[styles.card, style]}>
       <Pressable
@@ -159,13 +161,14 @@ export function RecipeCard({
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(theme: import('../theme/theme').CraveTheme) {
+  return StyleSheet.create({
   card: {
     position: 'relative',
     width: '100%',
     overflow: 'hidden',
     borderRadius: theme.radius.lg,
-    backgroundColor: theme.colors.white,
+    backgroundColor: theme.colors.card,
     ...theme.shadows.card,
   },
   content: {
@@ -200,7 +203,7 @@ const styles = StyleSheet.create({
     fontWeight: theme.typography.weight.semibold,
   },
   title: {
-    color: theme.colors.darkBrown,
+    color: theme.colors.heading,
     fontSize: theme.typography.heading,
     fontWeight: theme.typography.weight.bold,
     lineHeight: theme.typography.lineHeight.heading,
@@ -234,7 +237,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: theme.radius.pill,
-    backgroundColor: theme.colors.white,
+    backgroundColor: theme.colors.card,
     ...theme.shadows.floating,
   },
-});
+  });
+}

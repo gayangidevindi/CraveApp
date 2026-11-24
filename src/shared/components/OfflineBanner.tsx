@@ -1,7 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { theme } from '../theme/theme';
+import { useCraveThemeStyles } from '../theme/useCraveTheme';
 
 export interface OfflineBannerProps {
   message?: string;
@@ -10,6 +10,8 @@ export interface OfflineBannerProps {
 export function OfflineBanner({
   message = "You're offline. Showing saved recipes.",
 }: OfflineBannerProps) {
+  const { theme, styles } = useCraveThemeStyles(createStyles);
+
   return (
     <View
       style={styles.container}
@@ -27,7 +29,8 @@ export function OfflineBanner({
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(theme: import('../theme/theme').CraveTheme) {
+  return StyleSheet.create({
   container: {
     width: '100%',
     minHeight: 48,
@@ -37,7 +40,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.sm,
     borderRadius: theme.radius.md,
-    backgroundColor: theme.colors.softYellow,
+    backgroundColor: theme.colors.elevatedSurface,
   },
   message: {
     flex: 1,
@@ -46,4 +49,5 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.caption,
     lineHeight: theme.typography.lineHeight.caption,
   },
-});
+  });
+}
