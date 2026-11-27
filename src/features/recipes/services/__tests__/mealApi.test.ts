@@ -3,6 +3,7 @@ import NetInfo from '@react-native-community/netinfo';
 import { configureStore } from '@reduxjs/toolkit';
 
 import { mealApi } from '../mealApi';
+import { parseRecipeInstructions } from '../../utils/recipeDetails';
 import networkReducer, { networkStatusChanged } from '../../../../store/networkSlice';
 import { createNetworkStatusHandler } from '../../../../store/networkStatusHandler';
 
@@ -178,6 +179,130 @@ describe('mealApi', () => {
     }
   });
 
+  it('deduplicates Dominican areas and trims invalid or repeated cuisine values', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        meals: [
+          { strArea: ' Dominican ', strCountry: 'Dominica' },
+          { strArea: 'Dominican', strCountry: 'Dominican Republic' },
+          { strArea: ' japanese ' },
+          { strArea: 'JAPANESE' },
+          { strArea: '   ' },
+        ],
+      }),
+    );
+    const store = createTestStore();
+    const query = store.dispatch(mealApi.endpoints.getMealAreas.initiate());
+
+    try {
+      await expect(query.unwrap()).resolves.toEqual(['Dominican', 'japanese']);
+    } finally {
+      query.unsubscribe();
+      store.dispatch(mealApi.util.resetApiState());
+    }
+  });
+
+  it('deduplicates and normalizes meal categories by ID and display name', async () => {
+    const category = (
+      idCategory: string,
+      strCategory: string,
+    ) => ({
+      idCategory,
+      strCategory,
+      strCategoryThumb: 'https://example.com/category.jpg',
+      strCategoryDescription: 'Category description',
+    });
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        categories: [
+          category('1', ' Chicken '),
+          category('2', 'chicken'),
+          category('1', 'Seafood'),
+        ],
+      }),
+    );
+    const store = createTestStore();
+    const query = store.dispatch(
+      mealApi.endpoints.getMealCategories.initiate(),
+    );
+
+    try {
+      await expect(query.unwrap()).resolves.toEqual([
+        category('1', 'Chicken'),
+      ]);
+    } finally {
+      query.unsubscribe();
+      store.dispatch(mealApi.util.resetApiState());
+    }
+  });
+
+  it('removes duplicate recipe IDs from every repeated API response', async () => {
+    fetchMock.mockImplementation(async () =>
+      jsonResponse({
+        meals: [meal, { ...meal, strMeal: 'Duplicate API result' }],
+      }),
+    );
+    const store = createTestStore();
+
+    try {
+      for (let request = 0; request < 2; request += 1) {
+        const query = store.dispatch(
+          mealApi.endpoints.searchMeals.initiate('Teriyaki'),
+        );
+        await expect(query.unwrap()).resolves.toEqual([meal]);
+        query.unsubscribe();
+        store.dispatch(mealApi.util.resetApiState());
+      }
+
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    } finally {
+      store.dispatch(mealApi.util.resetApiState());
+    }
+  });
+
+  it('deduplicates cuisine values in a legacy cached response', async () => {
+    await AsyncStorage.setItem(
+      'craveapp.recipes.cache.v1.areas',
+      JSON.stringify({
+        meals: [
+          { strArea: 'Dominican', strCountry: 'Dominica' },
+          { strArea: ' dominican ', strCountry: 'Dominican Republic' },
+        ],
+      }),
+    );
+    const store = createTestStore(true);
+    const query = store.dispatch(mealApi.endpoints.getMealAreas.initiate());
+
+    try {
+      await expect(query.unwrap()).resolves.toEqual(['Dominican']);
+      expect(fetchMock).not.toHaveBeenCalled();
+    } finally {
+      query.unsubscribe();
+      store.dispatch(mealApi.util.resetApiState());
+    }
+  });
+
+  it('deduplicates recipe IDs in a legacy cached response', async () => {
+    await AsyncStorage.setItem(
+      'craveapp.recipes.cache.v1.search.teriyaki',
+      JSON.stringify({
+        meals: [meal, { ...meal, strMeal: 'Duplicate cached result' }],
+      }),
+    );
+    const store = createTestStore(true);
+    const query = store.dispatch(
+      mealApi.endpoints.searchMeals.initiate('Teriyaki'),
+    );
+
+    try {
+      await expect(query.unwrap()).resolves.toEqual([meal]);
+      expect(fetchMock).not.toHaveBeenCalled();
+    } finally {
+      query.unsubscribe();
+      store.dispatch(mealApi.util.resetApiState());
+    }
+  });
+
   it('returns a random recipe from TheMealDB', async () => {
     fetchMock.mockResolvedValue(jsonResponse({ meals: [meal] }));
     const store = createTestStore();
@@ -324,6 +449,46 @@ describe('mealApi', () => {
       expect(fetchMock).toHaveBeenCalledTimes(1);
     } finally {
       offlineQuery.unsubscribe();
+      store.dispatch(mealApi.util.resetApiState());
+    }
+  });
+
+  it('parses standalone numbered instructions from cached recipe details', async () => {
+    const instructions = [
+      '1',
+      'Caramelize the chicken and boil it for around 30 minutes.',
+      '2',
+      'Add rice and cook until tender.',
+    ].join('\r\n');
+    const cachedMeal = {
+      ...meal,
+      idMeal: '53220',
+      strMeal: 'kabse',
+      strInstructions: instructions,
+    };
+    await AsyncStorage.setItem(
+      'craveapp.recipes.cache.v1.details.53220',
+      JSON.stringify({ meals: [cachedMeal] }),
+    );
+    const store = createTestStore(true);
+    const query = store.dispatch(
+      mealApi.endpoints.getRecipeDetails.initiate('53220'),
+    );
+
+    try {
+      const cachedDetails = await query.unwrap();
+      expect(
+        parseRecipeInstructions(cachedDetails?.strInstructions),
+      ).toEqual([
+        {
+          number: 1,
+          text: 'Caramelize the chicken and boil it for around 30 minutes.',
+        },
+        { number: 2, text: 'Add rice and cook until tender.' },
+      ]);
+      expect(fetchMock).not.toHaveBeenCalled();
+    } finally {
+      query.unsubscribe();
       store.dispatch(mealApi.util.resetApiState());
     }
   });
