@@ -25,10 +25,13 @@ interface ThunkConfig {
   rejectValue: string;
 }
 
-function errorMessage(error: unknown): string {
-  return error instanceof Error
-    ? error.message
-    : 'Recently viewed recipes could not be saved.';
+function errorMessage(
+  _error: unknown,
+  operation: 'load' | 'save',
+): string {
+  return operation === 'load'
+    ? 'Unable to load recently viewed recipes. Please try again.'
+    : 'Unable to save this recipe. Please try again.';
 }
 
 export const loadRecentlyViewed = createAsyncThunk<
@@ -41,7 +44,7 @@ export const loadRecentlyViewed = createAsyncThunk<
     try {
       return { userId, meals: await readRecentlyViewed(userId) };
     } catch (error) {
-      return rejectWithValue(errorMessage(error));
+      return rejectWithValue(errorMessage(error, 'load'));
     }
   },
   {
@@ -66,7 +69,7 @@ export const recordRecentlyViewed = createAsyncThunk<
       await saveRecentlyViewed(userId, next);
       return { userId, meals: next };
     } catch (error) {
-      return rejectWithValue(errorMessage(error));
+      return rejectWithValue(errorMessage(error, 'save'));
     }
   },
   {
@@ -96,7 +99,8 @@ const recentlyViewedSlice = createSlice({
         if (!action.meta.condition) {
           state.loadingByUser[action.meta.arg] = false;
           state.errorByUser[action.meta.arg] =
-            action.payload ?? action.error.message ?? 'History could not load.';
+            action.payload ??
+            'Unable to load recently viewed recipes. Please try again.';
           state.loadedByUser[action.meta.arg] = true;
         }
       })
@@ -109,8 +113,7 @@ const recentlyViewedSlice = createSlice({
         if (!action.meta.condition) {
           state.errorByUser[action.meta.arg.userId] =
             action.payload ??
-            action.error.message ??
-            'Recently viewed recipes could not be saved.';
+            'Unable to save this recipe. Please try again.';
         }
       });
   },

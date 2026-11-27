@@ -11,7 +11,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
   useWindowDimensions,
 } from 'react-native';
@@ -25,11 +24,16 @@ import { EmptyState } from '../../../shared/components/EmptyState';
 import { ErrorState } from '../../../shared/components/ErrorState';
 import { OfflineBanner } from '../../../shared/components/OfflineBanner';
 import { RecipeCard } from '../../../shared/components/RecipeCard';
+import { SearchField } from '../../../shared/components/SearchField';
 import { RecipeSkeletonCard } from '../../../shared/components/RecipeSkeletonCard';
+import { ToastMessage } from '../../../shared/components/ToastMessage';
 import {
   hydrateRecipeSync,
 } from '../state/recipeSyncSlice';
-import { toggleUserFavourite } from '../state/favouritesSlice';
+import {
+  loadUserFavourites,
+  toggleUserFavourite,
+} from '../state/favouritesSlice';
 import {
   loadRecentlyViewed,
 } from '../state/recentlyViewedSlice';
@@ -49,37 +53,21 @@ import {
   uniqueRecipesById,
 } from '../utils/normalizeRecipeData';
 import { useCraveThemeStyles } from '../../../shared/theme/useCraveTheme';
+import { userMessages } from '../../../shared/constants/userMessages';
 
 type Props = MainTabScreenProps<'Home'>;
 type QueryError = FetchBaseQueryError | SerializedError | undefined;
 
 function getErrorMessage(error: QueryError): string {
-  if (!error) {
-    return 'Please try again in a moment.';
+  if (error && 'status' in error && error.status === 'FETCH_ERROR') {
+    return userMessages.connectionTrouble;
   }
 
-  if ('status' in error) {
-    if (error.status === 'CUSTOM_ERROR') {
-      return error.error;
-    }
-
-    if (error.status === 'FETCH_ERROR') {
-      return 'Unable to reach TheMealDB. Check your internet connection and try again.';
-    }
-
-    if (
-      typeof error.data === 'object' &&
-      error.data !== null &&
-      'message' in error.data &&
-      typeof error.data.message === 'string'
-    ) {
-      return error.data.message;
-    }
-
-    return 'The recipe service could not complete your request. Please try again.';
+  if (error && 'status' in error && error.status === 'CUSTOM_ERROR') {
+    return 'This is not available right now. Please try again later.';
   }
 
-  return error.message ?? 'The recipe service could not complete your request.';
+  return userMessages.unexpectedError;
 }
 
 export function HomeScreen({ navigation }: Props) {
@@ -89,16 +77,18 @@ export function HomeScreen({ navigation }: Props) {
   const networkOffline = useAppSelector((state) => state.network.isOffline);
   const favouritesState = useAppSelector((state) => state.favourites);
   const recentlyViewedState = useAppSelector((state) => state.recentlyViewed);
-  const lastSyncedAt = useAppSelector(
-    (state) => state.recipeSync.lastSyncedAt,
-  );
   const { width } = useWindowDimensions();
+  const contentMaxWidth = Math.min(width, 1120);
   const listRef = useRef<FlatList<Meal>>(null);
   const [searchText, setSearchText] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedArea, setSelectedArea] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [showBackToTop, setShowBackToTop] = useState(false);
+  const [favouriteFeedback, setFavouriteFeedback] = useState<{
+    message: string;
+    tone: 'success' | 'error';
+  } | null>(null);
   const debouncedSearch = useDebouncedValue(searchText.trim(), 350);
   const isDebouncing =
     selectedCategory === null &&
@@ -181,9 +171,28 @@ export function HomeScreen({ navigation }: Props) {
     void dispatch(hydrateRecipeSync());
   }, [dispatch]);
 
-  const toggleFavourite = (meal: Meal) => {
-    if (userId !== null) {
-      void dispatch(toggleUserFavourite({ userId, meal }));
+  const toggleFavourite = async (meal: Meal) => {
+    if (userId === null) {
+      return;
+    }
+
+    const isSaved = favouriteMeals.some(
+      (favourite) => favourite.idMeal === meal.idMeal,
+    );
+
+    try {
+      await dispatch(toggleUserFavourite({ userId, meal })).unwrap();
+      setFavouriteFeedback({
+        message: isSaved
+          ? 'Removed from favourites.'
+          : 'Added to favourites!',
+        tone: 'success',
+      });
+    } catch {
+      setFavouriteFeedback({
+        message: userMessages.unableToSaveFavourites,
+        tone: 'error',
+      });
     }
   };
 
@@ -248,7 +257,7 @@ export function HomeScreen({ navigation }: Props) {
     if (recipesQuery.isError) {
       return (
         <ErrorState
-          title="Recipes could not load"
+          title="Unable to load recipes"
           message={getErrorMessage(recipesQuery.error)}
           retryLabel="Try again"
           onRetry={() => {
@@ -261,19 +270,11 @@ export function HomeScreen({ navigation }: Props) {
     return (
       <EmptyState
         title={
-          debouncedSearch
+          debouncedSearch || selectedArea || selectedCategory
             ? 'No recipes found'
-            : selectedArea
-              ? `No ${selectedArea} recipes found`
-              : 'No recipes available'
+            : 'No recipes available'
         }
-        message={
-          debouncedSearch
-            ? `No recipes matched "${debouncedSearch}". Try another search.`
-            : selectedArea
-              ? 'Try another cuisine or clear the current filter.'
-              : 'Try again later to discover more recipes.'
-        }
+        message="Try a different search or explore another cuisine."
         icon="search"
       />
     );
@@ -282,15 +283,14 @@ export function HomeScreen({ navigation }: Props) {
   const renderHeader = () => (
     <View>
       {networkOffline ? <OfflineBanner /> : null}
-      <Text style={styles.syncStatus}>
-        {lastSyncedAt === null
-          ? 'Recipes sync when a connection is available.'
-          : `Last synced ${new Date(lastSyncedAt).toLocaleString()}`}
-      </Text>
       <View style={styles.topBar}>
         <View style={styles.greeting}>
-          <Text style={styles.greetingLabel}>{greeting}, good to see you</Text>
-          <Text style={styles.userName}>{userName}</Text>
+          <Text style={styles.greetingLabel}>
+            {greeting}, {userName}!
+          </Text>
+          <Text style={styles.supportingText}>
+            What would you like to cook today?
+          </Text>
         </View>
         <Pressable
           onPress={() => navigation.navigate('Profile')}
@@ -313,30 +313,23 @@ export function HomeScreen({ navigation }: Props) {
       </View>
 
       <View style={styles.search}>
-        <Text style={styles.sectionTitle}>What are you craving?</Text>
-        <View style={styles.searchInput}>
-          <Feather
-            name="search"
-            size={18}
-            color={theme.colors.chocolateBrown}
-            accessible={false}
-          />
-          <CustomSearchInput
-            value={searchText}
-            onChangeText={(value) => {
-              setSearchText(value);
-              if (value.length > 0) {
-                setSelectedCategory(null);
-                setSelectedArea(null);
-              }
-            }}
-            onClear={() => setSearchText('')}
-          />
-        </View>
+        <SearchField
+          accessibilityLabel="Search recipes"
+          placeholder="Search recipes by name"
+          value={searchText}
+          onChangeText={(value) => {
+            setSearchText(value);
+            if (value.length > 0) {
+              setSelectedCategory(null);
+              setSelectedArea(null);
+            }
+          }}
+          onClear={() => setSearchText('')}
+        />
       </View>
 
       <View style={styles.categoriesSection}>
-        <Text style={styles.sectionTitle}>Categories</Text>
+        <Text style={styles.sectionTitle}>Recipe categories</Text>
         {categoriesQuery.isLoading ? (
           <View style={styles.categoriesLoading}>
             <ActivityIndicator size="small" color={theme.colors.deepOrange} />
@@ -344,7 +337,7 @@ export function HomeScreen({ navigation }: Props) {
           </View>
         ) : categoriesQuery.isError ? (
           <ErrorState
-            title="Categories unavailable"
+            title="Unable to load categories"
             message={getErrorMessage(categoriesQuery.error)}
             retryLabel="Retry"
             onRetry={() => {
@@ -382,7 +375,7 @@ export function HomeScreen({ navigation }: Props) {
       </View>
 
       <View style={styles.categoriesSection}>
-        <Text style={styles.sectionTitle}>Cuisines</Text>
+        <Text style={styles.sectionTitle}>Explore cuisines</Text>
         {areasQuery.isLoading ? (
           <View style={styles.categoriesLoading}>
             <ActivityIndicator size="small" color={theme.colors.deepOrange} />
@@ -390,7 +383,7 @@ export function HomeScreen({ navigation }: Props) {
           </View>
         ) : areasQuery.isError ? (
           <ErrorState
-            title="Cuisines unavailable"
+            title="Unable to load cuisines"
             message={getErrorMessage(areasQuery.error)}
             retryLabel="Retry"
             onRetry={() => {
@@ -453,7 +446,7 @@ export function HomeScreen({ navigation }: Props) {
         </View>
       ) : historyError ? (
         <ErrorState
-          title="Recently viewed recipes unavailable"
+          title="Unable to load recently viewed recipes"
           message={historyError}
           retryLabel="Retry"
           onRetry={() => {
@@ -465,17 +458,17 @@ export function HomeScreen({ navigation }: Props) {
       ) : null}
 
       <View style={styles.featuredSection}>
-        <Text style={styles.sectionTitle}>Featured recipe</Text>
+        <Text style={styles.sectionTitle}>Today&apos;s pick</Text>
         {featuredQuery.isLoading ? (
           <View style={styles.featuredLoading}>
             <ActivityIndicator size="small" color={theme.colors.deepOrange} />
             <Text style={styles.supportingText}>
-              Finding a featured recipe...
+              Finding today&apos;s pick...
             </Text>
           </View>
         ) : featuredQuery.isError ? (
           <ErrorState
-            title="Featured recipe unavailable"
+            title="Unable to load today's pick"
             message={getErrorMessage(featuredQuery.error)}
             retryLabel="Retry"
             onRetry={() => {
@@ -484,6 +477,7 @@ export function HomeScreen({ navigation }: Props) {
           />
         ) : featuredMeal ? (
           <RecipeCard
+            featured
             title={featuredMeal.strMeal}
             imageSource={
               featuredMeal.strMealThumb
@@ -506,8 +500,8 @@ export function HomeScreen({ navigation }: Props) {
           />
         ) : (
           <EmptyState
-            title="No featured recipe"
-            message="Try refreshing to discover a recipe."
+            title="No pick available right now"
+            message="Try refreshing to find something delicious."
             icon="coffee"
           />
         )}
@@ -516,9 +510,9 @@ export function HomeScreen({ navigation }: Props) {
       <View style={styles.randomSection}>
         <View style={styles.randomHeading}>
           <View style={styles.randomCopy}>
-            <Text style={styles.sectionTitle}>Feeling lucky?</Text>
+            <Text style={styles.sectionTitle}>Need inspiration?</Text>
             <Text style={styles.supportingText}>
-              Discover a random recipe from TheMealDB.
+              Let us choose something delicious for you.
             </Text>
           </View>
           <Pressable
@@ -550,7 +544,7 @@ export function HomeScreen({ navigation }: Props) {
         </View>
         {randomMealQuery.isError ? (
           <ErrorState
-            title="Random recipe unavailable"
+            title="Unable to find a recipe right now"
             message={getErrorMessage(randomMealQuery.error)}
             retryLabel="Try again"
             onRetry={() => {
@@ -598,11 +592,11 @@ export function HomeScreen({ navigation }: Props) {
               ? `${selectedArea} cuisine`
             : debouncedSearch
               ? 'Search results'
-              : 'Explore recipes'}
+              : 'Discover something delicious'}
         </Text>
         {recipesQuery.isError && recipes.length > 0 ? (
           <ErrorState
-            title="Could not refresh recipes"
+            title="Unable to refresh recipes"
             message={getErrorMessage(recipesQuery.error)}
             retryLabel="Retry"
             onRetry={() => {
@@ -611,19 +605,19 @@ export function HomeScreen({ navigation }: Props) {
           />
         ) : null}
       </View>
-      {favouritesError ? (
+      {favouritesError && !favouritesLoaded ? (
         <ErrorState
-          title="Favourites could not be saved"
-          message={favouritesError}
+          title="Unable to load favourites"
+          message="Please try again."
+          retryLabel="Try again"
+          onRetry={() => {
+            if (userId !== null) {
+              void dispatch(loadUserFavourites(userId));
+            }
+          }}
         />
       ) : null}
     </View>
-  );
-
-  const renderFooter = () => (
-    <Text style={styles.attribution}>
-      Recipe data and imagery provided by TheMealDB.
-    </Text>
   );
 
   return (
@@ -641,8 +635,10 @@ export function HomeScreen({ navigation }: Props) {
         }
         ListHeaderComponent={renderHeader}
         ListEmptyComponent={renderListEmpty}
-        ListFooterComponent={renderFooter}
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={[
+          styles.listContent,
+          { maxWidth: contentMaxWidth },
+        ]}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -679,53 +675,14 @@ export function HomeScreen({ navigation }: Props) {
           />
         </Pressable>
       ) : null}
+      <View style={styles.toastContainer} pointerEvents="box-none">
+        <ToastMessage
+          message={favouriteFeedback?.message ?? null}
+          tone={favouriteFeedback?.tone ?? 'success'}
+          onDismiss={() => setFavouriteFeedback(null)}
+        />
+      </View>
     </SafeAreaView>
-  );
-}
-
-interface CustomSearchInputProps {
-  value: string;
-  onChangeText: (value: string) => void;
-  onClear: () => void;
-}
-
-function CustomSearchInput({
-  value,
-  onChangeText,
-  onClear,
-}: CustomSearchInputProps) {
-  const { theme, styles } = useCraveThemeStyles(createStyles);
-
-  return (
-    <View style={styles.searchInputContent}>
-      <TextInput
-        accessibilityLabel="Search recipes"
-        placeholder="Search recipes by name"
-        placeholderTextColor={theme.colors.secondaryText}
-        value={value}
-        onChangeText={onChangeText}
-        autoCapitalize="none"
-        autoCorrect={false}
-        returnKeyType="search"
-        style={styles.searchTextInput}
-      />
-      {value.length > 0 ? (
-        <Pressable
-          onPress={onClear}
-          accessibilityRole="button"
-          accessibilityLabel="Clear recipe search"
-          hitSlop={8}
-          style={styles.clearSearchButton}
-        >
-          <Feather
-            name="x-circle"
-            size={20}
-            color={theme.colors.secondaryText}
-            accessible={false}
-          />
-        </Pressable>
-      ) : null}
-    </View>
   );
 }
 
@@ -747,6 +704,8 @@ function createStyles(theme: import('../../../shared/theme/theme').CraveTheme) {
   },
   listContent: {
     flexGrow: 1,
+    width: '100%',
+    alignSelf: 'center',
     paddingHorizontal: theme.spacing.lg,
     paddingBottom: theme.spacing.xl,
   },
@@ -757,23 +716,15 @@ function createStyles(theme: import('../../../shared/theme/theme').CraveTheme) {
     gap: theme.spacing.md,
     paddingTop: theme.spacing.sm,
   },
-  syncStatus: {
-    marginTop: theme.spacing.xs,
-    color: theme.colors.secondaryText,
-    fontSize: theme.typography.caption,
-  },
   greeting: {
     flex: 1,
     gap: theme.spacing.xs,
   },
   greetingLabel: {
-    color: theme.colors.chocolateBrown,
-    fontSize: theme.typography.body,
-  },
-  userName: {
     color: theme.colors.heading,
     fontSize: theme.typography.title,
     fontWeight: theme.typography.weight.bold,
+    lineHeight: theme.typography.lineHeight.title,
   },
   avatar: {
     width: 52,
@@ -791,38 +742,8 @@ function createStyles(theme: import('../../../shared/theme/theme').CraveTheme) {
     height: '100%',
   },
   search: {
-    marginTop: theme.spacing.lg,
-  },
-  searchInput: {
-    minHeight: 52,
-    flexDirection: 'row',
-    alignItems: 'center',
     gap: theme.spacing.sm,
-    marginTop: theme.spacing.sm,
-    paddingLeft: theme.spacing.md,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: theme.radius.md,
-    backgroundColor: theme.colors.card,
-  },
-  searchInputContent: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  searchTextInput: {
-    minHeight: 50,
-    flex: 1,
-    paddingVertical: theme.spacing.sm,
-    paddingRight: theme.spacing.xs,
-    color: theme.colors.darkBrown,
-    fontSize: theme.typography.body,
-  },
-  clearSearchButton: {
-    width: 48,
-    height: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
+    marginTop: theme.spacing.lg,
   },
   sectionTitle: {
     color: theme.colors.heading,
@@ -857,6 +778,12 @@ function createStyles(theme: import('../../../shared/theme/theme').CraveTheme) {
   },
   randomSection: {
     marginTop: theme.spacing.xl,
+    gap: theme.spacing.md,
+    padding: theme.spacing.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: theme.radius.xl,
+    backgroundColor: theme.colors.elevatedSurface,
   },
   randomHeading: {
     flexDirection: 'row',
@@ -870,14 +797,15 @@ function createStyles(theme: import('../../../shared/theme/theme').CraveTheme) {
     gap: theme.spacing.xs,
   },
   randomButton: {
-    minHeight: 48,
+    minHeight: 52,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: theme.spacing.xs,
     paddingHorizontal: theme.spacing.md,
     borderRadius: theme.radius.pill,
-    backgroundColor: theme.colors.deepOrange,
+    backgroundColor: theme.colors.primary,
+    ...theme.shadows.button,
   },
   randomButtonText: {
     color: theme.colors.onPrimary,
@@ -924,14 +852,14 @@ function createStyles(theme: import('../../../shared/theme/theme').CraveTheme) {
     flex: 1,
   },
   supportingText: {
-    color: theme.colors.chocolateBrown,
+    color: theme.colors.secondaryText,
     fontSize: theme.typography.caption,
   },
-  attribution: {
-    paddingTop: theme.spacing.md,
-    color: theme.colors.chocolateBrown,
-    fontSize: theme.typography.caption,
-    textAlign: 'center',
+  toastContainer: {
+    position: 'absolute',
+    right: 0,
+    bottom: 0,
+    left: 0,
   },
   backToTop: {
     position: 'absolute',
