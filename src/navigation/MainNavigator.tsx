@@ -32,7 +32,7 @@ export function MainNavigator() {
       <Stack.Screen
         name="RecipeDetails"
         component={RecipeDetailsScreen}
-        options={{ title: 'Recipe details' }}
+        options={{ headerShown: false }}
       />
       <Stack.Screen
         name="EditProfile"

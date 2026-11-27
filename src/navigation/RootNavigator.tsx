@@ -29,7 +29,7 @@ export function RootNavigator() {
   }, [dispatch, userId]);
 
   if (status === 'idle' || status === 'restoring') {
-    return <LoadingState label="Restoring your session..." />;
+    return <LoadingState label="Getting your kitchen ready..." />;
   }
 
   return (

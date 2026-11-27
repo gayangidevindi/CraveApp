@@ -6,7 +6,7 @@ import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 export type AuthStackParamList = {
-  Login: undefined;
+  Login: { username?: string } | undefined;
   Register: undefined;
 };
 

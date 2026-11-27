@@ -1,6 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import type { ComponentProps } from 'react';
+import { View } from 'react-native';
 
 import { FavouritesScreen } from '../features/recipes/screens/FavouritesScreen';
 import { HomeScreen } from '../features/recipes/screens/HomeScreen';
@@ -29,22 +30,47 @@ export function MainTabNavigator() {
         tabBarLabelStyle: {
           fontSize: theme.typography.caption,
           fontWeight: theme.typography.weight.semibold,
-          marginBottom: 2,
+          marginBottom: 1,
+          letterSpacing: 0.1,
         },
         tabBarStyle: {
-          minHeight: 60,
+          minHeight: 68,
           paddingTop: theme.spacing.xs,
-          paddingBottom: theme.spacing.xs,
+          paddingBottom: theme.spacing.sm,
           backgroundColor: theme.colors.card,
           borderTopColor: theme.colors.border,
+          borderTopWidth: 1,
         },
-        tabBarIcon: ({ color, size }) => (
-          <Feather
-            name={tabIcons[route.name]}
-            color={color}
-            size={size}
-            accessible={false}
-          />
+        tabBarItemStyle: {
+          minHeight: 56,
+        },
+        tabBarIcon: ({ color, focused }) => (
+          <View
+            style={{
+              minWidth: 44,
+              minHeight: 32,
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 2,
+            }}
+          >
+            <Feather
+              name={tabIcons[route.name]}
+              color={color}
+              size={22}
+              accessible={false}
+            />
+            <View
+              style={{
+                width: focused ? 14 : 4,
+                height: 3,
+                borderRadius: theme.radius.pill,
+                backgroundColor: focused
+                  ? theme.colors.primary
+                  : 'transparent',
+              }}
+            />
+          </View>
         ),
       })}
     >

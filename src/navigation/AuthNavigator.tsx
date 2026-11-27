@@ -13,6 +13,7 @@ export function AuthNavigator() {
   return (
     <Stack.Navigator
       screenOptions={{
+        headerShown: false,
         headerStyle: { backgroundColor: theme.colors.warmCream },
         headerTintColor: theme.colors.darkBrown,
         headerTitleStyle: {
