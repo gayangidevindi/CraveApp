@@ -23,10 +23,8 @@ const initialState: ThemeState = {
   error: null,
 };
 
-function getErrorMessage(error: unknown, fallback: string): string {
-  return error instanceof Error && error.message
-    ? error.message
-    : fallback;
+function getErrorMessage(_error: unknown, fallback: string): string {
+  return fallback;
 }
 
 export const hydrateThemePreference = createAsyncThunk<
@@ -40,7 +38,7 @@ export const hydrateThemePreference = createAsyncThunk<
     return rejectWithValue(
       getErrorMessage(
         error,
-        'Your appearance preference could not be loaded.',
+        'Unable to load your appearance setting. Please try again.',
       ),
     );
   }
@@ -66,7 +64,7 @@ export const setThemeMode = createAsyncThunk<
       return rejectWithValue(
         getErrorMessage(
           error,
-          'Your appearance preference could not be saved.',
+          'Unable to save your appearance setting. Please try again.',
         ),
       );
     }
@@ -94,7 +92,7 @@ const themeSlice = createSlice({
         state.error =
           action.payload ??
           action.error.message ??
-          'Your appearance preference could not be loaded.';
+          'Unable to load your appearance setting. Please try again.';
       })
       .addCase(setThemeMode.pending, (state) => {
         state.isSaving = true;
@@ -109,7 +107,7 @@ const themeSlice = createSlice({
         state.error =
           action.payload ??
           action.error.message ??
-          'Your appearance preference could not be saved.';
+          'Unable to save your appearance setting. Please try again.';
       });
   },
 });

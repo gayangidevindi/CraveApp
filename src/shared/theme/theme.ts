@@ -19,10 +19,19 @@ export interface ThemeColors {
   onPrimary: string;
   overlay: string;
   shadow: string;
+  success: string;
+  successBackground: string;
+  error: string;
+  errorBackground: string;
+  info: string;
+  infoBackground: string;
+  warning: string;
+  warningBackground: string;
 }
 
 const sharedTokens = {
   spacing: {
+    xxs: 2,
     xs: 4,
     sm: 8,
     md: 16,
@@ -31,14 +40,15 @@ const sharedTokens = {
     xxl: 40,
   },
   radius: {
-    sm: 8,
-    md: 12,
+    sm: 10,
+    md: 14,
     lg: 20,
     xl: 24,
     pill: 999,
   },
   typography: {
-    caption: 13,
+    overline: 11,
+    caption: 12,
     label: 14,
     body: 16,
     subtitle: 18,
@@ -46,10 +56,12 @@ const sharedTokens = {
     title: 28,
     display: 32,
     lineHeight: {
+      overline: 16,
       caption: 18,
       body: 24,
       heading: 30,
       title: 36,
+      display: 40,
     },
     weight: {
       regular: '400',
@@ -63,7 +75,7 @@ const sharedTokens = {
 const lightColors: ThemeColors = {
   primary: '#F97316',
   deepOrange: '#EA580C',
-  chocolateBrown: '#78716C',
+  chocolateBrown: '#4E342E',
   darkBrown: '#292524',
   goldenYellow: '#FBBF24',
   softYellow: '#FEF3C7',
@@ -79,6 +91,14 @@ const lightColors: ThemeColors = {
   onPrimary: '#292524',
   overlay: 'rgba(41, 37, 36, 0.52)',
   shadow: '#292524',
+  success: '#166534',
+  successBackground: '#DCFCE7',
+  error: '#B91C1C',
+  errorBackground: '#FEE2E2',
+  info: '#1D4ED8',
+  infoBackground: '#DBEAFE',
+  warning: '#92400E',
+  warningBackground: '#FEF3C7',
 };
 
 const darkColors: ThemeColors = {
@@ -100,6 +120,14 @@ const darkColors: ThemeColors = {
   onPrimary: '#292524',
   overlay: 'rgba(0, 0, 0, 0.72)',
   shadow: '#000000',
+  success: '#86EFAC',
+  successBackground: '#14532D',
+  error: '#FCA5A5',
+  errorBackground: '#7F1D1D',
+  info: '#93C5FD',
+  infoBackground: '#1E3A8A',
+  warning: '#FCD34D',
+  warningBackground: '#78350F',
 };
 
 export interface CraveTheme {

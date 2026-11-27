@@ -5,6 +5,7 @@ import {
   Pressable,
   StyleSheet,
   Text,
+  View,
   type PressableProps,
   type StyleProp,
   type TextStyle,
@@ -21,6 +22,7 @@ export interface CustomButtonProps
   title: string;
   variant?: CustomButtonVariant;
   loading?: boolean;
+  loadingText?: string;
   icon?: FeatherIconName;
   iconPosition?: 'left' | 'right';
   style?: StyleProp<ViewStyle>;
@@ -31,6 +33,7 @@ export function CustomButton({
   title,
   variant = 'primary',
   loading = false,
+  loadingText,
   icon,
   iconPosition = 'left',
   disabled = false,
@@ -72,10 +75,21 @@ export function CustomButton({
       ]}
     >
       {loading ? (
-        <ActivityIndicator
-          color={textColor}
-          accessible={false}
-        />
+        <View style={styles.loadingContent}>
+          <ActivityIndicator color={textColor} accessible={false} />
+          {loadingText ? (
+            <Text
+              style={[
+                styles.text,
+                { color: textColor },
+                isDisabled && styles.disabledText,
+                textStyle,
+              ]}
+            >
+              {loadingText}
+            </Text>
+          ) : null}
+        </View>
       ) : (
         <>
           {iconPosition === 'left' ? buttonIcon : null}
@@ -99,7 +113,7 @@ export function CustomButton({
 function createStyles(theme: import('../theme/theme').CraveTheme) {
   return StyleSheet.create({
   button: {
-    minHeight: 48,
+    minHeight: 52,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -107,7 +121,7 @@ function createStyles(theme: import('../theme/theme').CraveTheme) {
     paddingHorizontal: theme.spacing.lg,
     paddingVertical: theme.spacing.sm,
     borderWidth: 1,
-    borderRadius: theme.radius.md,
+    borderRadius: theme.radius.lg,
   },
   primary: {
     backgroundColor: theme.colors.primary,
@@ -123,19 +137,25 @@ function createStyles(theme: import('../theme/theme').CraveTheme) {
     borderColor: theme.colors.deepOrange,
   },
   disabled: {
-    backgroundColor: theme.colors.softYellow,
-    borderColor: theme.colors.softYellow,
+    opacity: 0.55,
     shadowOpacity: 0,
     elevation: 0,
   },
   pressed: {
-    transform: [{ scale: 0.98 }],
+    opacity: 0.92,
+    transform: [{ scale: 0.985 }],
   },
   text: {
     fontSize: theme.typography.body,
     fontWeight: theme.typography.weight.semibold,
     lineHeight: theme.typography.lineHeight.body,
     textAlign: 'center',
+  },
+  loadingContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: theme.spacing.sm,
   },
   disabledText: {
     color: theme.colors.chocolateBrown,

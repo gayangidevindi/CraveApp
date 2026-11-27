@@ -78,10 +78,12 @@ describe('themeSlice', () => {
       .mockRejectedValueOnce(new Error('Storage unavailable'));
 
     await expect(store.dispatch(setThemeMode('dark')).unwrap()).rejects.toBe(
-      'Storage unavailable',
+      'Unable to save your appearance setting. Please try again.',
     );
 
     expect(store.getState().theme.mode).toBe('light');
-    expect(store.getState().theme.error).toBe('Storage unavailable');
+    expect(store.getState().theme.error).toBe(
+      'Unable to save your appearance setting. Please try again.',
+    );
   });
 });

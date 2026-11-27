@@ -1,11 +1,19 @@
 import { Feather } from '@expo/vector-icons';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import {
+  Animated,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+} from 'react-native';
 
 import { useCraveThemeStyles } from '../theme/useCraveTheme';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 
 interface ToastMessageProps {
   message: string | null;
-  tone?: 'success' | 'error';
+  tone?: 'success' | 'error' | 'info' | 'warning';
   onDismiss: () => void;
 }
 
@@ -15,17 +23,74 @@ export function ToastMessage({
   onDismiss,
 }: ToastMessageProps) {
   const { theme, styles } = useCraveThemeStyles(createStyles);
+  const reducedMotion = useReducedMotion();
+  const [appear] = useState(() => new Animated.Value(0));
   const isError = tone === 'error';
+  const toneStyle = styles[tone];
+  const toneColors = {
+    success: theme.colors.success,
+    error: theme.colors.error,
+    info: theme.colors.info,
+    warning: theme.colors.warning,
+  };
+  const toneIcons = {
+    success: 'check-circle',
+    error: 'alert-circle',
+    info: 'info',
+    warning: 'alert-triangle',
+  } as const;
+  const toneColor = toneColors[tone];
+
+  useEffect(() => {
+    if (!message) {
+      appear.setValue(0);
+      return;
+    }
+
+    if (reducedMotion) {
+      appear.setValue(1);
+      return;
+    }
+
+    appear.setValue(0);
+    const animation = Animated.timing(appear, {
+      toValue: 1,
+      duration: 180,
+      useNativeDriver: Platform.OS !== 'web',
+    });
+    animation.start();
+    return () => animation.stop();
+  }, [appear, message, reducedMotion]);
+
+  useEffect(() => {
+    if (!message) {
+      return;
+    }
+
+    const timeout = setTimeout(onDismiss, 4_000);
+    return () => clearTimeout(timeout);
+  }, [message, onDismiss]);
 
   if (!message) {
     return null;
   }
 
   return (
-    <View
+    <Animated.View
       style={[
         styles.toast,
-        isError && styles.errorToast,
+        toneStyle,
+        {
+          opacity: appear,
+          transform: [
+            {
+              translateY: appear.interpolate({
+                inputRange: [0, 1],
+                outputRange: [8, 0],
+              }),
+            },
+          ],
+        },
       ]}
       accessibilityRole={
         Platform.OS === 'web' ? undefined : isError ? 'alert' : 'text'
@@ -41,12 +106,12 @@ export function ToastMessage({
       }
     >
       <Feather
-        name={isError ? 'alert-circle' : 'check-circle'}
+        name={toneIcons[tone]}
         size={19}
-        color={isError ? theme.colors.onPrimary : theme.colors.darkBrown}
+        color={toneColor}
         accessible={false}
       />
-      <Text style={styles.message}>{message}</Text>
+      <Text style={[styles.message, { color: toneColor }]}>{message}</Text>
       <Pressable
         onPress={onDismiss}
         accessibilityRole="button"
@@ -56,11 +121,11 @@ export function ToastMessage({
         <Feather
           name="x"
           size={18}
-          color={isError ? theme.colors.onPrimary : theme.colors.darkBrown}
+          color={toneColor}
           accessible={false}
         />
       </Pressable>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -77,8 +142,17 @@ function createStyles(theme: import('../theme/theme').CraveTheme) {
       backgroundColor: theme.colors.softYellow,
       ...theme.shadows.floating,
     },
-    errorToast: {
-      backgroundColor: theme.colors.deepOrange,
+    success: {
+      backgroundColor: theme.colors.successBackground,
+    },
+    error: {
+      backgroundColor: theme.colors.errorBackground,
+    },
+    info: {
+      backgroundColor: theme.colors.infoBackground,
+    },
+    warning: {
+      backgroundColor: theme.colors.warningBackground,
     },
     message: {
       flex: 1,

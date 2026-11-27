@@ -8,7 +8,7 @@ export interface OfflineBannerProps {
 }
 
 export function OfflineBanner({
-  message = "You're offline. Showing saved recipes.",
+  message = "You're offline. You can still explore your saved recipes.",
 }: OfflineBannerProps) {
   const { theme, styles } = useCraveThemeStyles(createStyles);
 
@@ -32,7 +32,7 @@ export function OfflineBanner({
       <Feather
         name="wifi-off"
         size={18}
-        color={theme.colors.darkBrown}
+        color={theme.colors.warning}
         accessible={false}
       />
       <Text style={styles.message}>{message}</Text>
@@ -44,19 +44,21 @@ function createStyles(theme: import('../theme/theme').CraveTheme) {
   return StyleSheet.create({
   container: {
     width: '100%',
-    minHeight: 48,
+    minHeight: 50,
     flexDirection: 'row',
     alignItems: 'center',
     gap: theme.spacing.sm,
     paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.sm,
-    borderRadius: theme.radius.md,
-    backgroundColor: theme.colors.elevatedSurface,
+    borderWidth: 1,
+    borderColor: theme.colors.warning,
+    borderRadius: theme.radius.lg,
+    backgroundColor: theme.colors.warningBackground,
   },
   message: {
     flex: 1,
     flexShrink: 1,
-    color: theme.colors.darkBrown,
+    color: theme.colors.warning,
     fontSize: theme.typography.caption,
     lineHeight: theme.typography.lineHeight.caption,
   },

@@ -1,8 +1,10 @@
-import { useState, type ComponentProps } from 'react';
+import { useEffect, useRef, useState, type ComponentProps } from 'react';
 import { Feather } from '@expo/vector-icons';
 import {
+  Animated,
   Image,
   Pressable,
+  Platform,
   StyleSheet,
   Text,
   View,
@@ -12,6 +14,7 @@ import {
 } from 'react-native';
 
 import { useCraveThemeStyles } from '../theme/useCraveTheme';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 
 type FeatherIconName = ComponentProps<typeof Feather>['name'];
 
@@ -25,6 +28,7 @@ export interface RecipeCardProps {
   imagePlaceholderIcon?: FeatherIconName;
   isFavorite?: boolean;
   showFavorite?: boolean;
+  featured?: boolean;
   favoriteDisabled?: boolean;
   onPress?: () => void;
   onFavoritePress?: () => void;
@@ -41,19 +45,52 @@ export function RecipeCard({
   imagePlaceholderIcon = 'coffee',
   isFavorite = false,
   showFavorite = false,
+  featured = false,
   favoriteDisabled = false,
   onPress,
   onFavoritePress,
   style,
 }: RecipeCardProps) {
   const { theme, styles } = useCraveThemeStyles(createStyles);
+  const reducedMotion = useReducedMotion();
   const [failedImageKey, setFailedImageKey] = useState<string | null>(null);
+  const [heartScale] = useState(() => new Animated.Value(1));
+  const previousFavorite = useRef(isFavorite);
   const imageKey =
     typeof imageSource === 'object' &&
     imageSource !== null &&
     'uri' in imageSource
       ? imageSource.uri ?? ''
       : String(imageSource ?? '');
+
+  useEffect(() => {
+    if (previousFavorite.current === isFavorite) {
+      return;
+    }
+
+    previousFavorite.current = isFavorite;
+    if (reducedMotion) {
+      heartScale.setValue(1);
+      return;
+    }
+
+    const animation = Animated.sequence([
+      Animated.spring(heartScale, {
+        toValue: 1.22,
+        useNativeDriver: Platform.OS !== 'web',
+        speed: 26,
+        bounciness: 7,
+      }),
+      Animated.spring(heartScale, {
+        toValue: 1,
+        useNativeDriver: Platform.OS !== 'web',
+        speed: 26,
+        bounciness: 4,
+      }),
+    ]);
+    animation.start();
+    return () => animation.stop();
+  }, [heartScale, isFavorite, reducedMotion]);
 
   return (
     <View style={[styles.card, style]}>
@@ -67,7 +104,12 @@ export function RecipeCard({
           pressed && styles.pressed,
         ]}
       >
-        <View style={styles.imageContainer}>
+        <View
+          style={[
+            styles.imageContainer,
+            featured && styles.featuredImageContainer,
+          ]}
+        >
           {imageSource && failedImageKey !== imageKey ? (
             <Image
               source={imageSource}
@@ -87,13 +129,19 @@ export function RecipeCard({
             </View>
           )}
         </View>
-        <View style={styles.details}>
+        <View style={[styles.details, featured && styles.featuredDetails]}>
+          {featured ? (
+            <Text style={styles.featuredLabel}>TODAY&apos;S PICK</Text>
+          ) : null}
           {category ? (
             <Text style={styles.category} numberOfLines={1}>
               {category}
             </Text>
           ) : null}
-          <Text style={styles.title} numberOfLines={2}>
+          <Text
+            style={[styles.title, featured && styles.featuredTitle]}
+            numberOfLines={2}
+          >
             {title}
           </Text>
           {description ? (
@@ -144,12 +192,19 @@ export function RecipeCard({
           hitSlop={4}
           style={styles.favoriteButton}
         >
-          <Feather
-            name="heart"
-            size={20}
-            color={isFavorite ? theme.colors.deepOrange : theme.colors.darkBrown}
-            accessible={false}
-          />
+          <Animated.View style={{ transform: [{ scale: heartScale }] }}>
+            <Feather
+              name="heart"
+              size={20}
+              color={
+                isFavorite
+                  ? theme.colors.deepOrange
+                  : theme.colors.darkBrown
+              }
+              fill={isFavorite ? theme.colors.deepOrange : 'transparent'}
+              accessible={false}
+            />
+          </Animated.View>
         </Pressable>
       ) : showFavorite ? (
         <View
@@ -191,6 +246,9 @@ function createStyles(theme: import('../theme/theme').CraveTheme) {
     overflow: 'hidden',
     backgroundColor: theme.colors.softYellow,
   },
+  featuredImageContainer: {
+    aspectRatio: 2.2,
+  },
   image: {
     width: '100%',
     height: '100%',
@@ -205,6 +263,15 @@ function createStyles(theme: import('../theme/theme').CraveTheme) {
     gap: theme.spacing.xs,
     padding: theme.spacing.md,
   },
+  featuredDetails: {
+    padding: theme.spacing.lg,
+  },
+  featuredLabel: {
+    color: theme.colors.deepOrange,
+    fontSize: theme.typography.overline,
+    fontWeight: theme.typography.weight.bold,
+    letterSpacing: 0.8,
+  },
   category: {
     color: theme.colors.deepOrange,
     fontSize: theme.typography.caption,
@@ -215,6 +282,10 @@ function createStyles(theme: import('../theme/theme').CraveTheme) {
     fontSize: theme.typography.heading,
     fontWeight: theme.typography.weight.bold,
     lineHeight: theme.typography.lineHeight.heading,
+  },
+  featuredTitle: {
+    fontSize: theme.typography.title,
+    lineHeight: theme.typography.lineHeight.title,
   },
   description: {
     color: theme.colors.chocolateBrown,
@@ -246,6 +317,8 @@ function createStyles(theme: import('../theme/theme').CraveTheme) {
     justifyContent: 'center',
     borderRadius: theme.radius.pill,
     backgroundColor: theme.colors.card,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
     ...theme.shadows.floating,
   },
   });

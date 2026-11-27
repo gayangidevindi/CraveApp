@@ -17,3 +17,5 @@ export { OfflineBanner } from './OfflineBanner';
 export type { OfflineBannerProps } from './OfflineBanner';
 export { RecipeCard } from './RecipeCard';
 export type { RecipeCardProps } from './RecipeCard';
+export { SearchField } from './SearchField';
+export type { SearchFieldProps } from './SearchField';

@@ -8,6 +8,7 @@ describe('theme palette', () => {
   it('keeps warm cream and dark brown available for accessible screens', () => {
     expect(theme.colors.warmCream).toBe('#FFF7ED');
     expect(theme.colors.darkBrown).toBe('#292524');
+    expect(theme.colors.chocolateBrown).toBe('#4E342E');
   });
 
   it('defines the requested dark palette and high-contrast surfaces', () => {
@@ -29,6 +30,19 @@ describe('theme palette', () => {
   it('provides shared spacing and typography tokens', () => {
     expect(theme.spacing.md).toBeGreaterThan(0);
     expect(theme.typography.body).toBeGreaterThan(0);
+  });
+
+  it('provides semantic feedback colours for both themes', () => {
+    expect(theme.colors.successBackground).toBe('#DCFCE7');
+    expect(theme.colors.errorBackground).toBe('#FEE2E2');
+    expect(theme.colors.infoBackground).toBe('#DBEAFE');
+    expect(theme.colors.warningBackground).toBe('#FEF3C7');
+
+    const darkTheme = themes.dark;
+    expect(darkTheme.colors.successBackground).toBe('#14532D');
+    expect(darkTheme.colors.errorBackground).toBe('#7F1D1D');
+    expect(darkTheme.colors.infoBackground).toBe('#1E3A8A');
+    expect(darkTheme.colors.warningBackground).toBe('#78350F');
   });
 
   it('provides rounded corners and cross-platform shadow tokens', () => {

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   Animated,
+  Platform,
   StyleSheet,
   View,
   type StyleProp,
@@ -30,12 +31,12 @@ export function RecipeSkeletonCard({ style }: RecipeSkeletonCardProps) {
         Animated.timing(opacity, {
           toValue: 1,
           duration: 750,
-          useNativeDriver: true,
+          useNativeDriver: Platform.OS !== 'web',
         }),
         Animated.timing(opacity, {
           toValue: 0.55,
           duration: 750,
-          useNativeDriver: true,
+          useNativeDriver: Platform.OS !== 'web',
         }),
       ]),
     );

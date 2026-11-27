@@ -38,11 +38,11 @@ function createStyles(theme: import('../theme/theme').CraveTheme) {
     alignItems: 'center',
     justifyContent: 'center',
     gap: theme.spacing.sm,
-    padding: theme.spacing.xl,
+    padding: theme.spacing.xxl,
   },
   label: {
     color: theme.colors.darkBrown,
-    fontSize: theme.typography.body,
+    fontSize: theme.typography.subtitle,
     fontWeight: theme.typography.weight.semibold,
     textAlign: 'center',
   },

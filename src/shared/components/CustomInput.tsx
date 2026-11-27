@@ -1,5 +1,6 @@
 import type { ComponentProps } from 'react';
 import { Feather } from '@expo/vector-icons';
+import { useState } from 'react';
 import {
   Pressable,
   StyleSheet,
@@ -44,6 +45,7 @@ export function CustomInput({
   ...textInputProps
 }: CustomInputProps) {
   const { theme, styles } = useCraveThemeStyles(createStyles);
+  const [focused, setFocused] = useState(false);
 
   return (
     <View style={[styles.field, containerStyle]}>
@@ -53,6 +55,7 @@ export function CustomInput({
           styles.inputContainer,
           multiline && styles.multilineContainer,
           error && styles.inputError,
+          focused && !error && styles.inputFocused,
           !editable && styles.inputDisabled,
         ]}
       >
@@ -60,7 +63,7 @@ export function CustomInput({
           <Feather
             name={icon}
             size={18}
-            color={theme.colors.secondaryText}
+            color={focused ? theme.colors.deepOrange : theme.colors.secondaryText}
             accessible={false}
           />
         ) : null}
@@ -70,6 +73,14 @@ export function CustomInput({
           accessibilityHint={accessibilityHint ?? error}
           editable={editable}
           multiline={multiline}
+          onFocus={(event) => {
+            setFocused(true);
+            textInputProps.onFocus?.(event);
+          }}
+          onBlur={(event) => {
+            setFocused(false);
+            textInputProps.onBlur?.(event);
+          }}
           placeholderTextColor={
             placeholderTextColor ?? theme.colors.secondaryText
           }
@@ -82,7 +93,7 @@ export function CustomInput({
         {rightIcon ? (
           <Pressable
             onPress={onRightIconPress}
-            disabled={!onRightIconPress}
+            disabled={!onRightIconPress || !editable}
             accessibilityRole={onRightIconPress ? 'button' : undefined}
             accessibilityLabel={rightIconAccessibilityLabel}
             hitSlop={4}
@@ -127,15 +138,19 @@ function createStyles(theme: import('../theme/theme').CraveTheme) {
     lineHeight: theme.typography.lineHeight.body,
   },
   inputContainer: {
-    minHeight: 52,
+    minHeight: 56,
     flexDirection: 'row',
     alignItems: 'center',
     gap: theme.spacing.sm,
     paddingHorizontal: theme.spacing.md,
     borderWidth: 1,
     borderColor: theme.colors.border,
-    borderRadius: theme.radius.md,
+    borderRadius: theme.radius.lg,
     backgroundColor: theme.colors.card,
+  },
+  inputFocused: {
+    borderColor: theme.colors.primary,
+    borderWidth: 2,
   },
   multilineContainer: {
     alignItems: 'flex-start',
@@ -147,10 +162,11 @@ function createStyles(theme: import('../theme/theme').CraveTheme) {
   },
   inputDisabled: {
     backgroundColor: theme.colors.warmCream,
+    opacity: 0.72,
   },
   rightIconButton: {
-    width: 44,
-    height: 44,
+    width: 48,
+    height: 48,
     alignItems: 'center',
     justifyContent: 'center',
   },

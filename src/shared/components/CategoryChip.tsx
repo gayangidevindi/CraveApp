@@ -99,10 +99,11 @@ function createStyles(theme: import('../theme/theme').CraveTheme) {
   },
   unselected: {
     borderColor: theme.colors.border,
-    backgroundColor: theme.colors.elevatedSurface,
+    backgroundColor: theme.colors.card,
   },
   pressed: {
-    transform: [{ scale: 0.97 }],
+    opacity: 0.82,
+    transform: [{ scale: 0.975 }],
   },
   label: {
     flexShrink: 1,

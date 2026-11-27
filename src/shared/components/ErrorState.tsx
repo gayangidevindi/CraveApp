@@ -21,6 +21,7 @@ export function ErrorState({
       actionLabel={onRetry ? retryLabel : undefined}
       onAction={onRetry}
       variant="outline"
+      tone="error"
     />
   );
 }
