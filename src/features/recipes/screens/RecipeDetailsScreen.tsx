@@ -6,7 +6,6 @@ import {
   Animated,
   Image,
   Linking,
-  Modal,
   Platform,
   Pressable,
   Share,
@@ -46,6 +45,8 @@ import {
   parseRecipeIngredients,
   parseRecipeInstructions,
 } from '../utils/recipeDetails';
+import { extractCookingDuration } from '../utils/cookingMode';
+import { CookingModeModal } from '../components/CookingModeModal';
 
 type Props = NativeStackScreenProps<MainStackParamList, 'RecipeDetails'>;
 type QueryError = FetchBaseQueryError | SerializedError | undefined;
@@ -78,7 +79,6 @@ export function RecipeDetailsScreen({ navigation, route }: Props) {
   const [checklistSaving, setChecklistSaving] = useState(false);
   const [checklistError, setChecklistError] = useState<string | null>(null);
   const [cookingMode, setCookingMode] = useState(false);
-  const [cookingStep, setCookingStep] = useState(0);
   const recipeId = route.params.recipeId.trim();
   const user = useAppSelector((state) => state.auth.user);
   const userId = user ? String(user.id) : null;
@@ -387,10 +387,8 @@ export function RecipeDetailsScreen({ navigation, route }: Props) {
 
   const openCookingMode = () => {
     if (instructions.length === 0) {
-      setActionFeedback('Cooking instructions are not available.');
       return;
     }
-    setCookingStep(0);
     setCookingMode(true);
   };
 
@@ -616,56 +614,92 @@ export function RecipeDetailsScreen({ navigation, route }: Props) {
 
           <View style={styles.section}>
             <View style={styles.instructionsHeader}>
-              <Text style={styles.sectionTitle}>Instructions</Text>
-              {instructions.length > 0 ? (
-                <Pressable
-                  onPress={openCookingMode}
-                  accessibilityRole="button"
-                  accessibilityLabel="Start cooking mode"
-                  style={({ pressed }) => [
-                    styles.cookingModeButton,
-                    pressed && styles.pressed,
+              <View style={styles.instructionHeadingGroup}>
+                <Text
+                  style={[
+                    styles.sectionTitle,
+                    styles.instructionSectionTitle,
                   ]}
                 >
-                  <Feather
-                    name="maximize-2"
-                    size={16}
-                    color={theme.colors.onPrimary}
-                    accessible={false}
-                  />
-                  <Text style={styles.cookingModeButtonText}>Cooking Mode</Text>
-                </Pressable>
-              ) : null}
+                  Cooking Instructions
+                </Text>
+                <Text style={styles.instructionCount}>
+                  {instructions.length}{' '}
+                  {instructions.length === 1 ? 'valid step' : 'valid steps'}
+                </Text>
+              </View>
+              <Pressable
+                onPress={openCookingMode}
+                disabled={instructions.length === 0}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  instructions.length > 0
+                    ? 'Start Cooking Mode'
+                    : 'Cooking Mode unavailable because there are no valid instructions'
+                }
+                accessibilityState={{ disabled: instructions.length === 0 }}
+                style={({ pressed }) => [
+                  styles.cookingModeButton,
+                  instructions.length === 0 && styles.disabled,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Feather
+                  name={instructions.length > 0 ? 'play' : 'info'}
+                  size={17}
+                  color={theme.colors.onPrimary}
+                  accessible={false}
+                />
+                <Text style={styles.cookingModeButtonText}>
+                  {instructions.length > 0
+                    ? 'Start Cooking'
+                    : 'Unavailable'}
+                </Text>
+              </Pressable>
             </View>
             {instructions.length > 0 ? (
               <View style={styles.instructionList}>
-                {instructions.map((instruction, index) => (
-                  <View
-                    key={`${meal.idMeal}-step-${index}`}
-                    style={styles.instructionRow}
-                  >
-                    {instruction.number ? (
-                      <View style={styles.stepNumber}>
-                        <Text style={styles.stepNumberText}>
-                          {instruction.number}
-                        </Text>
-                      </View>
-                    ) : null}
-                    <Text
-                      style={[
-                        styles.instructionText,
-                        instruction.number === undefined &&
-                          styles.paragraphInstruction,
-                      ]}
+                {instructions.map((instruction) => {
+                  const duration = extractCookingDuration(instruction.text);
+
+                  return (
+                    <View
+                      key={`${meal.idMeal}-step-${instruction.number}`}
+                      style={styles.instructionCard}
                     >
-                      {instruction.text}
-                    </Text>
-                  </View>
-                ))}
+                      <View style={styles.instructionStepHeader}>
+                        <View style={styles.stepNumber}>
+                          <Text style={styles.stepNumberText}>
+                            {instruction.number}
+                          </Text>
+                        </View>
+                        <Text style={styles.instructionStepTitle}>
+                          Step {instruction.number}
+                        </Text>
+                        {duration ? (
+                          <View style={styles.instructionDurationChip}>
+                            <Feather
+                              name="clock"
+                              size={14}
+                              color={theme.colors.deepOrange}
+                              accessible={false}
+                            />
+                            <Text style={styles.instructionDurationText}>
+                              {duration.label}
+                            </Text>
+                          </View>
+                        ) : null}
+                      </View>
+                      <Text style={styles.instructionText}>
+                        {instruction.text}
+                      </Text>
+                    </View>
+                  );
+                })}
               </View>
             ) : (
               <Text style={styles.emptyCopy}>
-                Cooking instructions are not available for this recipe.
+                No valid cooking instructions are available for this recipe.
               </Text>
             )}
           </View>
@@ -729,118 +763,13 @@ export function RecipeDetailsScreen({ navigation, route }: Props) {
         </View>
       </ScrollView>
 
-      <Modal
-        visible={cookingMode}
-        animationType="slide"
-        onRequestClose={() => setCookingMode(false)}
-      >
-        <SafeAreaView style={styles.cookingSafeArea}>
-          <View style={styles.cookingHeader}>
-            <Text style={styles.cookingEyebrow}>COOKING MODE</Text>
-            <Pressable
-              onPress={() => setCookingMode(false)}
-              accessibilityRole="button"
-              accessibilityLabel="Exit Cooking Mode"
-              style={styles.cookingExitButton}
-            >
-              <Feather
-                name="x"
-                size={22}
-                color={theme.colors.darkBrown}
-                accessible={false}
-              />
-            </Pressable>
-          </View>
-          <Text style={styles.cookingTitle} numberOfLines={2}>
-            {meal.strMeal}
-          </Text>
-          <Text style={styles.cookingProgress}>
-            Step {cookingStep + 1} of {instructions.length}
-          </Text>
-          <View
-            accessibilityRole="progressbar"
-            accessibilityLabel="Cooking progress"
-            accessibilityValue={{
-              min: 0,
-              max: instructions.length,
-              now: cookingStep + 1,
-            }}
-            style={styles.progressTrack}
-          >
-            <View
-              style={[
-                styles.progressFill,
-                { width: `${((cookingStep + 1) / instructions.length) * 100}%` },
-              ]}
-            />
-          </View>
-          <View style={styles.cookingStepCard}>
-            <Text style={styles.cookingStepNumber}>{cookingStep + 1}</Text>
-            <ScrollView>
-              <Text style={styles.cookingStepText}>
-                {instructions[cookingStep]?.text}
-              </Text>
-            </ScrollView>
-          </View>
-          <View style={styles.cookingControls}>
-            <Pressable
-              onPress={() => setCookingStep((step) => Math.max(0, step - 1))}
-              disabled={cookingStep === 0}
-              accessibilityRole="button"
-              accessibilityLabel="Previous cooking step"
-              accessibilityState={{ disabled: cookingStep === 0 }}
-              style={[
-                styles.cookingStepButton,
-                styles.cookingSecondaryButton,
-                cookingStep === 0 && styles.disabled,
-              ]}
-            >
-              <Feather
-                name="arrow-left"
-                size={18}
-                color={theme.colors.darkBrown}
-                accessible={false}
-              />
-              <Text style={styles.cookingSecondaryText}>Previous</Text>
-            </Pressable>
-            {cookingStep < instructions.length - 1 ? (
-              <Pressable
-                onPress={() =>
-                  setCookingStep((step) =>
-                    Math.min(instructions.length - 1, step + 1),
-                  )
-                }
-                accessibilityRole="button"
-                accessibilityLabel="Next cooking step"
-                style={styles.cookingStepButton}
-              >
-                <Text style={styles.cookingNextText}>Next step</Text>
-                <Feather
-                  name="arrow-right"
-                  size={18}
-                  color={theme.colors.onPrimary}
-                  accessible={false}
-                />
-              </Pressable>
-            ) : (
-              <Pressable
-                onPress={() => setCookingMode(false)}
-                accessibilityRole="button"
-                accessibilityLabel="Finish cooking"
-                style={styles.cookingStepButton}
-              >
-                <Text style={styles.cookingNextText}>Finish</Text>
-                <Feather
-                  name="check"
-                  size={18}
-                  color={theme.colors.onPrimary}
-                  accessible={false}
-                />
-              </Pressable>
-            )}
-          </View>
-        </SafeAreaView>
-      </Modal>
+      {cookingMode ? (
+        <CookingModeModal
+          meal={meal}
+          instructions={instructions}
+          onClose={() => setCookingMode(false)}
+        />
+      ) : null}
       <View style={styles.toastContainer} pointerEvents="box-none">
         <ToastMessage
           message={actionFeedback}
@@ -1004,15 +933,28 @@ function createStyles(theme: import('../../../shared/theme/theme').CraveTheme) {
   },
   instructionsHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
     flexWrap: 'wrap',
     gap: theme.spacing.sm,
+    marginBottom: theme.spacing.md,
+  },
+  instructionHeadingGroup: {
+    flex: 1,
+    gap: 2,
+  },
+  instructionSectionTitle: {
+    marginBottom: 0,
+  },
+  instructionCount: {
+    color: theme.colors.secondaryText,
+    fontSize: theme.typography.caption,
   },
   cookingModeButton: {
-    minHeight: 44,
+    minHeight: 48,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: theme.spacing.xs,
     paddingHorizontal: theme.spacing.md,
     borderRadius: theme.radius.pill,
@@ -1026,32 +968,58 @@ function createStyles(theme: import('../../../shared/theme/theme').CraveTheme) {
   instructionList: {
     gap: theme.spacing.md,
   },
-  instructionRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+  instructionCard: {
     gap: theme.spacing.sm,
+    padding: theme.spacing.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: theme.radius.lg,
+    backgroundColor: theme.colors.card,
+    ...theme.shadows.card,
+  },
+  instructionStepHeader: {
+    minHeight: 40,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+    flexWrap: 'wrap',
   },
   stepNumber: {
-    width: 28,
-    height: 28,
+    width: 36,
+    height: 36,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: theme.radius.pill,
-    backgroundColor: theme.colors.primary,
+    backgroundColor: theme.colors.deepOrange,
   },
   stepNumberText: {
-    color: theme.colors.onPrimary,
+    color: theme.colors.white,
     fontSize: theme.typography.caption,
     fontWeight: theme.typography.weight.bold,
   },
+  instructionStepTitle: {
+    color: theme.colors.heading,
+    fontSize: theme.typography.body,
+    fontWeight: theme.typography.weight.bold,
+  },
+  instructionDurationChip: {
+    minHeight: 32,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+    paddingHorizontal: theme.spacing.sm,
+    borderRadius: theme.radius.pill,
+    backgroundColor: theme.colors.softYellow,
+  },
+  instructionDurationText: {
+    color: theme.colors.deepOrange,
+    fontSize: theme.typography.caption,
+    fontWeight: theme.typography.weight.semibold,
+  },
   instructionText: {
-    flex: 1,
     color: theme.colors.darkBrown,
     fontSize: theme.typography.body,
     lineHeight: theme.typography.lineHeight.body,
-  },
-  paragraphInstruction: {
-    marginBottom: theme.spacing.xs,
   },
   emptyCopy: {
     color: theme.colors.chocolateBrown,
@@ -1101,106 +1069,6 @@ function createStyles(theme: import('../../../shared/theme/theme').CraveTheme) {
     color: theme.colors.deepOrange,
     fontSize: theme.typography.body,
     fontWeight: theme.typography.weight.semibold,
-  },
-  cookingSafeArea: {
-    flex: 1,
-    padding: theme.spacing.lg,
-    backgroundColor: theme.colors.background,
-  },
-  cookingHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  cookingEyebrow: {
-    color: theme.colors.deepOrange,
-    fontSize: theme.typography.caption,
-    fontWeight: theme.typography.weight.bold,
-    letterSpacing: 1.2,
-  },
-  cookingExitButton: {
-    width: 48,
-    height: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: theme.radius.pill,
-    backgroundColor: theme.colors.card,
-  },
-  cookingTitle: {
-    marginTop: theme.spacing.md,
-    color: theme.colors.heading,
-    fontSize: theme.typography.title,
-    fontWeight: theme.typography.weight.bold,
-  },
-  cookingProgress: {
-    marginTop: theme.spacing.xl,
-    marginBottom: theme.spacing.sm,
-    color: theme.colors.secondaryText,
-    fontSize: theme.typography.body,
-  },
-  progressTrack: {
-    height: 8,
-    overflow: 'hidden',
-    borderRadius: theme.radius.pill,
-    backgroundColor: theme.colors.border,
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: theme.radius.pill,
-    backgroundColor: theme.colors.deepOrange,
-  },
-  cookingStepCard: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: theme.spacing.lg,
-    marginVertical: theme.spacing.xl,
-    padding: theme.spacing.lg,
-    borderRadius: theme.radius.lg,
-    backgroundColor: theme.colors.card,
-    ...theme.shadows.card,
-  },
-  cookingStepNumber: {
-    color: theme.colors.deepOrange,
-    fontSize: 44,
-    fontWeight: theme.typography.weight.bold,
-  },
-  cookingStepText: {
-    color: theme.colors.text,
-    fontSize: theme.typography.heading,
-    lineHeight: theme.typography.lineHeight.title,
-    textAlign: 'center',
-  },
-  cookingControls: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: theme.spacing.md,
-    paddingBottom: theme.spacing.md,
-  },
-  cookingStepButton: {
-    minHeight: 52,
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: theme.spacing.sm,
-    borderRadius: theme.radius.md,
-    backgroundColor: theme.colors.deepOrange,
-  },
-  cookingSecondaryButton: {
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.card,
-  },
-  cookingSecondaryText: {
-    color: theme.colors.darkBrown,
-    fontSize: theme.typography.body,
-    fontWeight: theme.typography.weight.semibold,
-  },
-  cookingNextText: {
-    color: theme.colors.onPrimary,
-    fontSize: theme.typography.body,
-    fontWeight: theme.typography.weight.bold,
   },
   attribution: {
     marginTop: theme.spacing.xl,
