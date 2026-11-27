@@ -36,27 +36,27 @@ const localAccountSchema = z.object({
 const localAccountsSchema = z.array(localAccountSchema);
 
 const localRegistrationSchema = z.object({
-  firstName: z.string().trim().min(1, 'Enter your full name.'),
+  firstName: z.string().trim().min(1, 'Please enter your full name.'),
   lastName: z.string().trim(),
   username: z
     .string()
     .trim()
-    .min(3, 'Username must be at least 3 characters.')
-    .max(30, 'Username must be 30 characters or fewer.')
+    .min(3, 'Choose a username with at least 3 characters.')
+    .max(30, 'Choose a username with 30 characters or fewer.')
     .regex(
-      /^[A-Za-z0-9_.-]+$/,
-      'Username can contain letters, numbers, dots, underscores and hyphens.',
+      /^(?:[A-Za-z0-9_.-]+)?$/,
+      'Use only letters, numbers, dots, underscores or hyphens in your username.',
     ),
   email: z
     .string()
     .trim()
     .toLowerCase()
     .email('Enter a valid email address.')
-    .max(254, 'Email must be 254 characters or fewer.'),
+    .max(254, 'Use an email address with 254 characters or fewer.'),
   password: z
     .string()
-    .min(8, 'Password must be at least 8 characters.')
-    .max(128, 'Password must be 128 characters or fewer.'),
+    .min(8, 'Choose a password with at least 8 characters.')
+    .max(128, 'Choose a password with 128 characters or fewer.'),
 });
 
 export class LocalAuthError extends Error {
@@ -81,7 +81,7 @@ async function readLocalAccounts(): Promise<LocalAccount[]> {
     parsedAccounts = JSON.parse(storedAccounts);
   } catch {
     throw new LocalAuthError(
-      'Saved local accounts could not be read. Clear this app’s local data and register again.',
+      'We could not access your saved account information. Please try again.',
     );
   }
 
@@ -89,7 +89,7 @@ async function readLocalAccounts(): Promise<LocalAccount[]> {
 
   if (!result.success) {
     throw new LocalAuthError(
-      'Saved local account data is invalid. Clear this app’s local data and register again.',
+      'We could not access your saved account information. Please try again.',
     );
   }
 
@@ -158,7 +158,7 @@ export async function registerLocalUser(
     )
   ) {
     throw new LocalAuthError(
-      'That username or email is already registered on this device.',
+      'That username or email is already in use.',
     );
   }
 
@@ -180,7 +180,7 @@ export async function registerLocalUser(
 
   if (saltHex === null) {
     throw new LocalAuthError(
-      'A unique password salt could not be generated. Please try again.',
+      'We could not create your account securely. Please try again.',
     );
   }
 

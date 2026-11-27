@@ -41,7 +41,7 @@ import type {
 } from '../types/authTypes';
 
 const REGISTRATION_NOTICE =
-  'Account created on this device. Log in with your username and password. This local demo account is separate from DummyJSON.';
+  'Your account is saved on this device. Use your username to sign in.';
 
 export const restoreAuthSession =
   () =>

@@ -6,6 +6,7 @@ import type {
   AuthUser,
   RegistrationRequest,
 } from '../types/authTypes';
+import { userMessages } from '../../../shared/constants/userMessages';
 
 const API_BASE_URL = 'https://dummyjson.com';
 const REGISTRATION_REQUEST_TIMEOUT_MS = 5_000;
@@ -243,23 +244,27 @@ export function getAuthErrorMessage(
       context === 'login' &&
       (error.status === 400 || error.status === 401)
     ) {
-      return 'Incorrect username or password. Check your credentials and try again.';
+      return 'Incorrect username or password.';
     }
 
     if (error.status === 401 || error.status === 403) {
-      return 'Your saved session could not be verified. Please log in again.';
+      return 'Your session has expired. Please sign in again.';
     }
 
-    return error.message;
+    return userMessages.unexpectedError;
   }
 
   if (error instanceof TypeError) {
-    return 'Unable to connect to DummyJSON. Check your internet connection and try again.';
+    return userMessages.connectionUnavailable;
   }
 
-  if (error instanceof Error && error.message) {
+  if (
+    error instanceof Error &&
+    error.name === 'LocalAuthError' &&
+    error.message
+  ) {
     return error.message;
   }
 
-  return 'An unexpected authentication error occurred. Please try again.';
+  return userMessages.unexpectedError;
 }

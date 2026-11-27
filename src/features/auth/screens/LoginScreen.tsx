@@ -2,34 +2,53 @@ import { Feather } from '@expo/vector-icons';
 import { zodResolver } from '@hookform/resolvers/zod';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Controller, useForm } from 'react-hook-form';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import type { AuthStackParamList } from '../../../navigation/types';
-import { submitLogin, clearAuthError } from '../state/authActions';
-import { loginSchema, type LoginFormData } from '../schemas/authSchemas';
-import { useAppDispatch, useAppSelector } from '../../../store/hooks';
 import { AuthNotice } from '../components/AuthNotice';
+import { AuthPhotoHeader } from '../components/AuthPhotoHeader';
+import { loginSchema, type LoginFormData } from '../schemas/authSchemas';
+import { clearAuthError, submitLogin } from '../state/authActions';
+import { useAppDispatch, useAppSelector } from '../../../store/hooks';
 import { CustomButton } from '../../../shared/components/CustomButton';
 import { CustomInput } from '../../../shared/components/CustomInput';
 import { useCraveThemeStyles } from '../../../shared/theme/useCraveTheme';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'Login'>;
 
-export function LoginScreen({ navigation }: Props) {
+export function LoginScreen({ navigation, route }: Props) {
   const { theme, styles } = useCraveThemeStyles(createStyles);
   const dispatch = useAppDispatch();
   const { status, error } = useAppSelector((state) => state.auth);
   const [passwordVisible, setPasswordVisible] = useState(false);
   const isLoading = status === 'authenticating';
-  const { control, handleSubmit } = useForm<LoginFormData>({
+  const { control, handleSubmit, setValue } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
       username: '',
       password: '',
     },
   });
+  const username = route.params?.username;
+
+  useEffect(() => {
+    if (!username) {
+      return;
+    }
+
+    setValue('username', username);
+    navigation.setParams({ username: undefined });
+  }, [navigation, setValue, username]);
 
   const clearLoginError = () => {
     if (error) {
@@ -42,7 +61,7 @@ export function LoginScreen({ navigation }: Props) {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom', 'left', 'right']}>
       <KeyboardAvoidingView
         style={styles.keyboardAvoidingView}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -50,26 +69,32 @@ export function LoginScreen({ navigation }: Props) {
         <ScrollView
           contentContainerStyle={styles.content}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
         >
+          <AuthPhotoHeader
+            source={require('../../../../assets/auth/login-food.jpg')}
+            accessibilityLabel="Overhead photograph of a colourful fresh vegetable salad"
+          />
+
           <View style={styles.form}>
-            <View style={styles.brand}>
-              <View style={styles.logo}>
+            <View style={styles.brandRow}>
+              <View style={styles.brandMark}>
                 <Feather
                   name="coffee"
-                  size={28}
+                  size={18}
                   color={theme.colors.onPrimary}
                   accessible={false}
                 />
               </View>
-              <Text style={styles.brandName}>CraveApp</Text>
-              <Text style={styles.tagline}>Good food, made easy.</Text>
+              <View style={styles.brandCopy}>
+                <Text style={styles.brandName}>CraveApp</Text>
+                <Text style={styles.tagline}>Discover. Cook. Enjoy.</Text>
+              </View>
             </View>
 
             <View style={styles.heading}>
-              <Text style={styles.title}>Welcome Back</Text>
-              <Text style={styles.subtitle}>
-                Sign in to pick up where your cravings left off.
-              </Text>
+              <Text style={styles.title}>Welcome back!</Text>
+              <Text style={styles.subtitle}>Something delicious awaits.</Text>
             </View>
 
             {error ? <AuthNotice message={error} /> : null}
@@ -143,24 +168,20 @@ export function LoginScreen({ navigation }: Props) {
                 void handleSubmit(onSubmit)();
               }}
               loading={isLoading}
+              loadingText="Signing in..."
               disabled={isLoading}
               style={styles.submitButton}
             />
 
-            <Text style={styles.demoHint}>
-              Demo: emilys / emilyspass. Locally registered accounts are saved
-              on this device only.
-            </Text>
-
             <View style={styles.registrationLink}>
-              <Text style={styles.linkPrompt}>New to CraveApp?</Text>
+              <Text style={styles.linkPrompt}>New here?</Text>
               <Pressable
                 onPress={() => navigation.navigate('Register')}
                 accessibilityRole="button"
-                accessibilityLabel="Register for CraveApp"
+                accessibilityLabel="Sign up for CraveApp"
                 style={styles.linkButton}
               >
-                <Text style={styles.linkText}>Create account</Text>
+                <Text style={styles.linkText}>Sign up</Text>
               </Pressable>
             </View>
           </View>
@@ -172,94 +193,101 @@ export function LoginScreen({ navigation }: Props) {
 
 function createStyles(theme: import('../../../shared/theme/theme').CraveTheme) {
   return StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: theme.colors.background,
-  },
-  keyboardAvoidingView: {
-    flex: 1,
-  },
-  content: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.xl,
-  },
-  form: {
-    width: '100%',
-    maxWidth: 440,
-    alignSelf: 'center',
-    gap: theme.spacing.lg,
-  },
-  brand: {
-    alignItems: 'center',
-  },
-  logo: {
-    width: 64,
-    height: 64,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: theme.radius.pill,
-    backgroundColor: theme.colors.primary,
-  },
-  brandName: {
-    marginTop: theme.spacing.sm,
-    color: theme.colors.heading,
-    fontSize: theme.typography.heading,
-    fontWeight: theme.typography.weight.bold,
-  },
-  tagline: {
-    marginTop: theme.spacing.xs,
-    color: theme.colors.chocolateBrown,
-    fontSize: theme.typography.caption,
-  },
-  heading: {
-    gap: theme.spacing.xs,
-  },
-  title: {
-    color: theme.colors.heading,
-    fontSize: theme.typography.title,
-    fontWeight: theme.typography.weight.bold,
-  },
-  subtitle: {
-    color: theme.colors.chocolateBrown,
-    fontSize: theme.typography.body,
-    lineHeight: theme.typography.lineHeight.body,
-  },
-  fields: {
-    gap: theme.spacing.md,
-  },
-  submitButton: {
-    width: '100%',
-  },
-  demoHint: {
-    color: theme.colors.chocolateBrown,
-    fontSize: theme.typography.caption,
-    lineHeight: theme.typography.lineHeight.caption,
-    textAlign: 'center',
-  },
-  registrationLink: {
-    minHeight: 48,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexWrap: 'wrap',
-    gap: theme.spacing.xs,
-  },
-  linkPrompt: {
-    color: theme.colors.chocolateBrown,
-    fontSize: theme.typography.body,
-  },
-  linkButton: {
-    minHeight: 44,
-    justifyContent: 'center',
-    paddingHorizontal: theme.spacing.xs,
-  },
-  linkText: {
-    color: theme.colors.deepOrange,
-    fontSize: theme.typography.body,
-    fontWeight: theme.typography.weight.bold,
-    textDecorationLine: 'underline',
-  },
+    safeArea: {
+      flex: 1,
+      backgroundColor: theme.colors.background,
+    },
+    keyboardAvoidingView: {
+      flex: 1,
+    },
+    content: {
+      flexGrow: 1,
+      alignItems: 'center',
+      paddingBottom: theme.spacing.sm,
+    },
+    form: {
+      width: '100%',
+      maxWidth: 480,
+      alignSelf: 'center',
+      gap: theme.spacing.md,
+      paddingHorizontal: theme.spacing.lg,
+      paddingTop: theme.spacing.md,
+    },
+    brandRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: theme.spacing.sm,
+    },
+    brandMark: {
+      width: 36,
+      height: 36,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: theme.radius.md,
+      backgroundColor: theme.colors.primary,
+    },
+    brandCopy: {
+      gap: theme.spacing.xxs,
+    },
+    brandName: {
+      color: theme.colors.darkBrown,
+      fontSize: theme.typography.subtitle,
+      fontWeight: theme.typography.weight.bold,
+      lineHeight: theme.typography.lineHeight.body,
+    },
+    tagline: {
+      color: theme.colors.chocolateBrown,
+      fontSize: theme.typography.caption,
+      lineHeight: theme.typography.lineHeight.caption,
+    },
+    heading: {
+      gap: theme.spacing.xxs,
+      paddingTop: theme.spacing.xs,
+    },
+    title: {
+      color: theme.colors.darkBrown,
+      fontSize: theme.typography.title,
+      fontWeight: theme.typography.weight.bold,
+      lineHeight: theme.typography.lineHeight.title,
+    },
+    subtitle: {
+      color: theme.colors.chocolateBrown,
+      fontSize: theme.typography.body,
+      lineHeight: theme.typography.lineHeight.body,
+    },
+    fields: {
+      gap: theme.spacing.sm,
+    },
+    submitButton: {
+      width: '100%',
+      minHeight: 52,
+      borderRadius: theme.radius.md,
+      shadowOpacity: 0,
+      shadowRadius: 0,
+      elevation: 0,
+    },
+    registrationLink: {
+      minHeight: 48,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexWrap: 'wrap',
+      gap: theme.spacing.xs,
+    },
+    linkPrompt: {
+      color: theme.colors.chocolateBrown,
+      fontSize: theme.typography.body,
+    },
+    linkButton: {
+      minHeight: 48,
+      justifyContent: 'center',
+      paddingHorizontal: theme.spacing.xs,
+    },
+    linkText: {
+      color: theme.colors.deepOrange,
+      fontSize: theme.typography.body,
+      fontWeight: theme.typography.weight.bold,
+      textDecorationLine: 'underline',
+    },
   });
 }

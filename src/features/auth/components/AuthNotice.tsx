@@ -5,16 +5,34 @@ import { useCraveThemeStyles } from '../../../shared/theme/useCraveTheme';
 
 interface AuthNoticeProps {
   message: string;
-  tone?: 'error' | 'success';
+  tone?: 'error' | 'success' | 'info' | 'warning';
 }
 
 export function AuthNotice({ message, tone = 'error' }: AuthNoticeProps) {
   const { theme, styles } = useCraveThemeStyles(createStyles);
   const isError = tone === 'error';
+  const toneStyles = {
+    success: styles.successContainer,
+    error: styles.errorContainer,
+    info: styles.infoContainer,
+    warning: styles.warningContainer,
+  };
+  const toneColors = {
+    success: theme.colors.success,
+    error: theme.colors.error,
+    info: theme.colors.info,
+    warning: theme.colors.warning,
+  };
+  const icons = {
+    success: 'check-circle',
+    error: 'alert-circle',
+    info: 'info',
+    warning: 'alert-triangle',
+  } as const;
 
   return (
     <View
-      style={[styles.container, !isError && styles.successContainer]}
+      style={[styles.container, toneStyles[tone]]}
       accessibilityRole={
         Platform.OS === 'web' ? undefined : isError ? 'alert' : 'text'
       }
@@ -29,12 +47,12 @@ export function AuthNotice({ message, tone = 'error' }: AuthNoticeProps) {
       }
     >
       <Feather
-        name={isError ? 'alert-circle' : 'check-circle'}
+        name={icons[tone]}
         size={18}
-        color={isError ? theme.colors.deepOrange : theme.colors.darkBrown}
+        color={toneColors[tone]}
         accessible={false}
       />
-      <Text style={styles.message}>{message}</Text>
+      <Text style={[styles.message, { color: toneColors[tone] }]}>{message}</Text>
     </View>
   );
 }
@@ -51,11 +69,19 @@ function createStyles(theme: import('../../../shared/theme/theme').CraveTheme) {
     backgroundColor: theme.colors.softYellow,
   },
   successContainer: {
-    backgroundColor: theme.colors.card,
+    backgroundColor: theme.colors.successBackground,
+  },
+  errorContainer: {
+    backgroundColor: theme.colors.errorBackground,
+  },
+  infoContainer: {
+    backgroundColor: theme.colors.infoBackground,
+  },
+  warningContainer: {
+    backgroundColor: theme.colors.warningBackground,
   },
   message: {
     flex: 1,
-    color: theme.colors.darkBrown,
     fontSize: theme.typography.caption,
     lineHeight: theme.typography.lineHeight.body,
   },

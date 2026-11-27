@@ -106,7 +106,7 @@ describe('localAuth', () => {
       registerLocalUser(
         registration({ username: 'anotheruser', email: 'ALEX@example.com' }),
       ),
-    ).rejects.toThrow('already registered');
+    ).rejects.toThrow('already in use');
   });
 
   it('rejects invalid credentials for a registered and an unknown username', async () => {

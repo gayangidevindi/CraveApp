@@ -41,11 +41,13 @@ describe('authSlice', () => {
     });
   });
 
-  it('does not authenticate a simulated registration', () => {
+  it('keeps a successful registration separate from an authenticated session', () => {
     const loadingState = authReducer(undefined, registrationStarted());
     const state = authReducer(
       loadingState,
-      registrationSucceeded('Registration is simulated.'),
+      registrationSucceeded(
+        'Your account is saved on this device. Use your username to sign in.',
+      ),
     );
 
     expect(state.registrationStatus).toBe('succeeded');

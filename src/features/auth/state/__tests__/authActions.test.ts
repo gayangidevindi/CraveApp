@@ -114,7 +114,7 @@ describe('auth actions', () => {
     expect(actions).toHaveLength(0);
   });
 
-  it('keeps DummyJSON demo-account login working', async () => {
+  it('allows login with valid DummyJSON credentials', async () => {
     const session: AuthSession = {
       user: { ...user, id: 123 },
       tokens: { accessToken: 'demo-access', refreshToken: 'demo-refresh' },
@@ -170,14 +170,77 @@ describe('auth actions', () => {
     expect(simulatedRegistration).toHaveBeenCalledWith(registration);
     expect(actions).toContainEqual(
       registrationSucceeded(
-        'Account created on this device. Log in with your username and password. This local demo account is separate from DummyJSON.',
+        'Your account is saved on this device. Use your username to sign in.',
       ),
     );
   });
 
+  it('reports success after the local account is saved', async () => {
+    registerLocal.mockResolvedValue(user);
+    const { actions, dispatch } = createDispatch();
+
+    await submitRegistration({
+      firstName: 'Alex',
+      lastName: 'Crave',
+      username: user.username,
+      email: user.email,
+      password: credentials.password,
+    })(dispatch);
+
+    expect(registerLocal).toHaveBeenCalledTimes(1);
+    expect(simulatedRegistration).toHaveBeenCalledTimes(1);
+    expect(actions).toContainEqual(
+      registrationSucceeded(
+        'Your account is saved on this device. Use your username to sign in.',
+      ),
+    );
+  });
+
+  it('completes local registration when the registration request times out', async () => {
+    registerLocal.mockResolvedValue(user);
+    simulatedRegistration.mockRejectedValue(
+      new Error('Registration request timed out.'),
+    );
+    const { actions, dispatch } = createDispatch();
+
+    await submitRegistration({
+      firstName: 'Alex',
+      lastName: 'Crave',
+      username: user.username,
+      email: user.email,
+      password: credentials.password,
+    })(dispatch);
+
+    expect(actions).toContainEqual(
+      registrationSucceeded(
+        'Your account is saved on this device. Use your username to sign in.',
+      ),
+    );
+  });
+
+  it('does not submit registration twice while account creation is in progress', async () => {
+    const { actions, dispatch } = createDispatch();
+    const getState = () =>
+      ({
+        auth: { registrationStatus: 'loading' },
+      }) as unknown as RootState;
+
+    await submitRegistration({
+      firstName: 'Alex',
+      lastName: 'Crave',
+      username: user.username,
+      email: user.email,
+      password: credentials.password,
+    })(dispatch, getState);
+
+    expect(registerLocal).not.toHaveBeenCalled();
+    expect(simulatedRegistration).not.toHaveBeenCalled();
+    expect(actions).toHaveLength(0);
+  });
+
   it('returns a duplicate-account error from local registration', async () => {
     registerLocal.mockRejectedValue(
-      new Error('That username or email is already registered on this device.'),
+      new Error('That username or email is already in use.'),
     );
     const { actions, dispatch } = createDispatch();
 
@@ -191,7 +254,7 @@ describe('auth actions', () => {
 
     expect(actions).toContainEqual(
       registrationFailed(
-        'That username or email is already registered on this device.',
+        'That username or email is already in use.',
       ),
     );
   });

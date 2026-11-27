@@ -17,6 +17,12 @@ describe('loginSchema', () => {
     });
 
     expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues.map((issue) => issue.message)).toEqual([
+        'Please enter your username.',
+        'Please enter your password.',
+      ]);
+    }
   });
 });
 

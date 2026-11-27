@@ -1,5 +1,6 @@
 import {
   AuthApiError,
+  getAuthErrorMessage,
   loginWithDummyJson,
   registerWithDummyJson,
   restoreSavedSession,
@@ -76,6 +77,24 @@ describe('authApi', () => {
     await expect(
       loginWithDummyJson({ username: 'wrong', password: 'wrong' }),
     ).rejects.toBeInstanceOf(AuthApiError);
+  });
+
+  it('maps login and network errors to friendly messages', () => {
+    expect(
+      getAuthErrorMessage(
+        new AuthApiError('Private response details', 401),
+        'login',
+      ),
+    ).toBe('Incorrect username or password.');
+    expect(
+      getAuthErrorMessage(
+        new TypeError('Network request failed'),
+        'login',
+      ),
+    ).toBe('Unable to connect. Please check your internet connection.');
+    expect(
+      getAuthErrorMessage(new Error('Private response details'), 'login'),
+    ).toBe('Something went wrong. Please try again.');
   });
 
   it('posts registration to the simulated users endpoint', async () => {
