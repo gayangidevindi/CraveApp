@@ -14,6 +14,7 @@ import {
 import {
   ActivityIndicator,
   Image,
+  Linking,
   Modal,
   Platform,
   Pressable,
@@ -33,6 +34,7 @@ import { CustomButton } from '../../../shared/components/CustomButton';
 import { ErrorState } from '../../../shared/components/ErrorState';
 import { LoadingState } from '../../../shared/components/LoadingState';
 import { OfflineBanner } from '../../../shared/components/OfflineBanner';
+import { ToastMessage } from '../../../shared/components/ToastMessage';
 import { useCraveThemeStyles } from '../../../shared/theme/useCraveTheme';
 import {
   updateUserProfile,
@@ -43,6 +45,7 @@ import {
   createDefaultUserProfile,
   MAX_PROFILE_IMAGE_DATA_URI_LENGTH,
 } from '../types/profileTypes';
+import appConfiguration from '../../../../app.json';
 
 type Props = MainTabScreenProps<'Profile'>;
 type ModalKind = 'photo' | 'about' | 'logout' | null;
@@ -180,6 +183,8 @@ export function ProfileScreen({ navigation }: Props) {
   const [photoError, setPhotoError] = useState<string | null>(null);
   const [photoNotice, setPhotoNotice] = useState<string | null>(null);
   const [isPickingPhoto, setIsPickingPhoto] = useState(false);
+  const [permissionSettingsRequired, setPermissionSettingsRequired] =
+    useState(false);
 
   useEffect(() => {
     if (userId !== null && !loaded && !loading) {
@@ -294,6 +299,7 @@ export function ProfileScreen({ navigation }: Props) {
   const pickPhoto = async (source: PhotoSource) => {
     setPhotoError(null);
     setPhotoNotice(null);
+    setPermissionSettingsRequired(false);
     setIsPickingPhoto(true);
 
     try {
@@ -304,10 +310,15 @@ export function ProfileScreen({ navigation }: Props) {
             : await ImagePicker.requestMediaLibraryPermissionsAsync();
 
         if (!permission.granted) {
+          setPermissionSettingsRequired(!permission.canAskAgain);
           throw new Error(
             source === 'camera'
-              ? 'Allow camera access to take a profile picture.'
-              : 'Allow photo access to choose a profile picture.',
+              ? permission.canAskAgain
+                ? 'Camera access is needed to take a profile picture. Allow access in the permission prompt.'
+                : 'Camera access is blocked. Open app settings and allow camera access to take a profile picture.'
+              : permission.canAskAgain
+                ? 'Photo access is needed to choose a profile picture. Allow access in the permission prompt.'
+                : 'Photo access is blocked. Open app settings and allow photo access to choose a profile picture.',
           );
         }
       }
@@ -401,6 +412,7 @@ export function ProfileScreen({ navigation }: Props) {
   const skillDescription =
     skill && skill !== 'Not specified' ? skill : 'Add your cooking level';
   const imageWidth = Math.min(width - theme.spacing.lg * 2, 560);
+  const appVersion = appConfiguration.expo.version;
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
@@ -417,9 +429,6 @@ export function ProfileScreen({ navigation }: Props) {
           ) : null}
           {photoError && activeModal !== 'photo' ? (
             <AuthNotice message={photoError} />
-          ) : null}
-          {photoNotice ? (
-            <AuthNotice message={photoNotice} tone="success" />
           ) : null}
           {signOutError ? (
             <AuthNotice message={signOutError} />
@@ -653,7 +662,26 @@ export function ProfileScreen({ navigation }: Props) {
                   Choose a photo or take a new picture. It will be saved on
                   this device.
                 </Text>
+                {avatarUri && failedAvatarUri !== avatarUri ? (
+                  <Image
+                    source={{ uri: avatarUri }}
+                    accessibilityLabel="Profile picture preview"
+                    style={styles.photoPreview}
+                  />
+                ) : null}
                 {photoError ? <AuthNotice message={photoError} /> : null}
+                {permissionSettingsRequired ? (
+                  <CustomButton
+                    title="Open app settings"
+                    icon="settings"
+                    variant="outline"
+                    onPress={() => {
+                      void Linking.openSettings().catch((error: unknown) => {
+                        setPhotoError(getErrorMessage(error));
+                      });
+                    }}
+                  />
+                ) : null}
                 <CustomButton
                   title="Choose from gallery"
                   icon="image"
@@ -703,6 +731,7 @@ export function ProfileScreen({ navigation }: Props) {
                   Your profile details and picture are stored on this device
                   and kept separate for each signed-in account.
                 </Text>
+                <Text style={styles.versionText}>Version {appVersion}</Text>
                 <CustomButton
                   title="Done"
                   onPress={() => setActiveModal(null)}
@@ -735,6 +764,12 @@ export function ProfileScreen({ navigation }: Props) {
           </View>
         </View>
       </Modal>
+      <View style={styles.toastContainer} pointerEvents="box-none">
+        <ToastMessage
+          message={photoNotice}
+          onDismiss={() => setPhotoNotice(null)}
+        />
+      </View>
     </SafeAreaView>
   );
 }
@@ -1006,6 +1041,23 @@ function createStyles(theme: import('../../../shared/theme/theme').CraveTheme) {
     color: theme.colors.chocolateBrown,
     fontSize: theme.typography.body,
     lineHeight: theme.typography.lineHeight.body,
+  },
+  photoPreview: {
+    width: 112,
+    height: 112,
+    alignSelf: 'center',
+    borderRadius: theme.radius.pill,
+    backgroundColor: theme.colors.softYellow,
+  },
+  toastContainer: {
+    position: 'absolute',
+    right: 0,
+    bottom: 0,
+    left: 0,
+  },
+  versionText: {
+    color: theme.colors.secondaryText,
+    fontSize: theme.typography.caption,
   },
   });
 }

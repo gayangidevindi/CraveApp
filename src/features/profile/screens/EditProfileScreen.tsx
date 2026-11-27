@@ -1,9 +1,11 @@
 import { zodResolver } from '@hookform/resolvers/zod';
+import { usePreventRemove } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useEffect, useMemo, useState } from 'react';
 import { Controller, useForm, useWatch } from 'react-hook-form';
 import {
   KeyboardAvoidingView,
+  Alert,
   Platform,
   Pressable,
   ScrollView,
@@ -146,6 +148,7 @@ export function EditProfileScreen({ navigation }: Props) {
     handleSubmit,
     reset,
     setValue,
+    formState: { isDirty },
   } = useForm<ProfileFormValues>({
     resolver: zodResolver(profileFormSchema),
     defaultValues: defaultProfile,
@@ -156,6 +159,32 @@ export function EditProfileScreen({ navigation }: Props) {
     useWatch({ control, name: 'dietaryPreferences' }) ?? [];
   const cookingSkill =
     useWatch({ control, name: 'cookingSkill' }) ?? 'Not specified';
+
+  usePreventRemove(isDirty && !saving, ({ data }) => {
+    const discardChanges = () => navigation.dispatch(data.action);
+    if (Platform.OS === 'web') {
+      if (
+        typeof window !== 'undefined' &&
+        window.confirm('Discard your unsaved profile changes?')
+      ) {
+        discardChanges();
+      }
+      return;
+    }
+
+    Alert.alert(
+      'Discard changes?',
+      'Your profile has unsaved changes. Leave without saving?',
+      [
+        { text: 'Keep editing', style: 'cancel' },
+        {
+          text: 'Discard',
+          style: 'destructive',
+          onPress: discardChanges,
+        },
+      ],
+    );
+  });
 
   useEffect(() => {
     if (userId !== null && !loaded && !loading) {
@@ -188,6 +217,7 @@ export function EditProfileScreen({ navigation }: Props) {
           },
         }),
       ).unwrap();
+      reset(values);
       setSavedMessage('Your profile has been saved on this device.');
     } catch (error) {
       setSubmitError(getErrorMessage(error));
