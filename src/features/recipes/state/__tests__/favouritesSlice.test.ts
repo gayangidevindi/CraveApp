@@ -14,6 +14,10 @@ jest.mock('@react-native-async-storage/async-storage', () => {
     default: {
       clear: jest.fn(async () => values.clear()),
       getItem: jest.fn(async (key: string) => values.get(key) ?? null),
+      getAllKeys: jest.fn(async () => Array.from(values.keys())),
+      multiRemove: jest.fn(async (keys: string[]) =>
+        keys.forEach((key) => values.delete(key)),
+      ),
       removeItem: jest.fn(async (key: string) => values.delete(key)),
       setItem: jest.fn(async (key: string, value: string) =>
         values.set(key, value),
@@ -57,6 +61,24 @@ describe('favourites persistence', () => {
     expect(restoredStore.getState().favourites.byUser['user-1']).toEqual([
       meal,
     ]);
+    expect(
+      restoredStore.getState().favourites.addedAtByUser['user-1']?.['52772'],
+    ).toEqual(expect.any(Number));
+  });
+
+  it('migrates existing array-shaped favourites without losing the saved meal', async () => {
+    await AsyncStorage.setItem(
+      'craveapp.favourites.v1.user-1',
+      JSON.stringify([meal]),
+    );
+    const store = createTestStore();
+
+    await store.dispatch(loadUserFavourites('user-1')).unwrap();
+
+    expect(store.getState().favourites.byUser['user-1']).toEqual([meal]);
+    expect(
+      store.getState().favourites.addedAtByUser['user-1']?.['52772'],
+    ).toEqual(expect.any(Number));
   });
 
   it('keeps favourite lists isolated between users', async () => {
