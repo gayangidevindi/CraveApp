@@ -14,6 +14,10 @@ jest.mock('@react-native-async-storage/async-storage', () => {
     default: {
       clear: jest.fn(async () => values.clear()),
       getItem: jest.fn(async (key: string) => values.get(key) ?? null),
+      getAllKeys: jest.fn(async () => Array.from(values.keys())),
+      multiRemove: jest.fn(async (keys: string[]) =>
+        keys.forEach((key) => values.delete(key)),
+      ),
       removeItem: jest.fn(async (key: string) => values.delete(key)),
       setItem: jest.fn(async (key: string, value: string) =>
         values.set(key, value),
@@ -65,9 +69,9 @@ function createTestStore(isOffline = false) {
   return store;
 }
 
-function jsonResponse(body: unknown): Response {
+function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
-    status: 200,
+    status,
     headers: { 'Content-Type': 'application/json' },
   });
 }
@@ -131,6 +135,58 @@ describe('mealApi', () => {
       await expect(query.unwrap()).resolves.toHaveLength(1);
       expect(fetchMock.mock.calls[0]?.[0]).toMatchObject({
         url: 'https://www.themealdb.com/api/json/v1/1/filter.php?c=Seafood',
+      });
+    } finally {
+      query.unsubscribe();
+      store.dispatch(mealApi.util.resetApiState());
+    }
+  });
+
+  it('filters meals by cuisine through filter.php?a=', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ meals: [meal] }));
+    const store = createTestStore();
+    const query = store.dispatch(
+      mealApi.endpoints.filterMealsByArea.initiate('Japanese'),
+    );
+
+    try {
+      await expect(query.unwrap()).resolves.toEqual([meal]);
+      expect(fetchMock.mock.calls[0]?.[0]).toMatchObject({
+        url: 'https://www.themealdb.com/api/json/v1/1/filter.php?a=Japanese',
+      });
+    } finally {
+      query.unsubscribe();
+      store.dispatch(mealApi.util.resetApiState());
+    }
+  });
+
+  it('loads cuisine names from TheMealDB', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({ meals: [{ strArea: 'Japanese' }, { strArea: 'Indian' }] }),
+    );
+    const store = createTestStore();
+    const query = store.dispatch(mealApi.endpoints.getMealAreas.initiate());
+
+    try {
+      await expect(query.unwrap()).resolves.toEqual(['Japanese', 'Indian']);
+      expect(fetchMock.mock.calls[0]?.[0]).toMatchObject({
+        url: 'https://www.themealdb.com/api/json/v1/1/list.php?a=list',
+      });
+    } finally {
+      query.unsubscribe();
+      store.dispatch(mealApi.util.resetApiState());
+    }
+  });
+
+  it('returns a random recipe from TheMealDB', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ meals: [meal] }));
+    const store = createTestStore();
+    const query = store.dispatch(mealApi.endpoints.getRandomMeal.initiate());
+
+    try {
+      await expect(query.unwrap()).resolves.toEqual(meal);
+      expect(fetchMock.mock.calls[0]?.[0]).toMatchObject({
+        url: 'https://www.themealdb.com/api/json/v1/1/random.php',
       });
     } finally {
       query.unsubscribe();
@@ -213,6 +269,30 @@ describe('mealApi', () => {
       expect(fetchMock).toHaveBeenCalledTimes(1);
     } finally {
       offlineQuery.unsubscribe();
+      store.dispatch(mealApi.util.resetApiState());
+    }
+  });
+
+  it('serves the last cached list when TheMealDB returns a server error', async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ meals: [meal] }))
+      .mockResolvedValueOnce(jsonResponse({ message: 'Unavailable' }, 503));
+    const store = createTestStore();
+    const firstQuery = store.dispatch(
+      mealApi.endpoints.searchMeals.initiate('Teriyaki'),
+    );
+    await expect(firstQuery.unwrap()).resolves.toEqual([meal]);
+    firstQuery.unsubscribe();
+    store.dispatch(mealApi.util.resetApiState());
+
+    const refreshQuery = store.dispatch(
+      mealApi.endpoints.searchMeals.initiate('Teriyaki'),
+    );
+    try {
+      await expect(refreshQuery.unwrap()).resolves.toEqual([meal]);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    } finally {
+      refreshQuery.unsubscribe();
       store.dispatch(mealApi.util.resetApiState());
     }
   });

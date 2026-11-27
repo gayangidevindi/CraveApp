@@ -6,6 +6,8 @@ import {
   readRecipeCache,
   writeRecipeCache,
 } from './recipeCache';
+import { saveLastRecipeSync } from './recipeSyncStorage';
+import { recipeSyncUpdated } from '../state/recipeSyncSlice';
 
 const MEAL_API_BASE_URL = 'https://www.themealdb.com/api/json/v1/1/';
 const networkBaseQuery = fetchBaseQuery({ baseUrl: MEAL_API_BASE_URL });
@@ -45,6 +47,11 @@ const mealDetailsResponseSchema = z.object({
 
 const categoriesResponseSchema = z.object({
   categories: z.array(categorySchema).nullable().optional(),
+});
+
+const areaSchema = z.object({ strArea: z.string() }).passthrough();
+const areasResponseSchema = z.object({
+  meals: z.array(areaSchema).nullable().optional(),
 });
 
 function getUrlParameter(args: unknown, name: string): string | null {
@@ -90,6 +97,10 @@ function getCacheKey(endpoint: string, args: unknown): string | null {
       return 'categories';
     case 'getFeaturedMeal':
       return 'featured';
+    case 'getRandomMeal':
+      return 'random';
+    case 'getMealAreas':
+      return 'areas';
     case 'searchMeals': {
       const searchTerm = getUrlParameter(args, 's');
       return searchTerm === null
@@ -117,6 +128,10 @@ function getCacheSchema(endpoint: string): z.ZodType<unknown> | null {
   switch (endpoint) {
     case 'getMealCategories':
       return categoriesResponseSchema;
+    case 'getMealAreas':
+      return areasResponseSchema;
+    case 'getRandomMeal':
+      return mealListResponseSchema;
     case 'getRecipeDetails':
       return mealDetailsResponseSchema;
     case 'searchMeals':
@@ -139,6 +154,10 @@ function hasCacheableData(endpoint: string, response: unknown): boolean {
 
   if (endpoint === 'getMealCategories' && 'categories' in response) {
     return hasNonEmptyArray(response.categories);
+  }
+
+  if (endpoint === 'getMealAreas' && 'meals' in response) {
+    return hasNonEmptyArray(response.meals);
   }
 
   if ('meals' in response) {
@@ -233,7 +252,13 @@ const baseQueryWithOfflineCache: typeof networkBaseQuery = async (
   const response = await networkBaseQuery(args, api, extraOptions);
 
   if ('error' in response && response.error !== undefined) {
-    if (response.error.status === 'FETCH_ERROR') {
+    const shouldTryCache =
+      response.error.status === 'FETCH_ERROR' ||
+      response.error.status === 'TIMEOUT_ERROR' ||
+      (typeof response.error.status === 'number' &&
+        response.error.status >= 500);
+
+    if (shouldTryCache) {
       const cachedResponse = await getCachedResponse(cacheKey, cacheSchema);
       if ('data' in cachedResponse) {
         return cachedResponse;
@@ -273,8 +298,11 @@ const baseQueryWithOfflineCache: typeof networkBaseQuery = async (
         validatedResponse.data,
         cacheSchema,
       );
+      const syncedAt = Date.now();
+      await saveLastRecipeSync(syncedAt);
+      api.dispatch(recipeSyncUpdated(syncedAt));
     } catch (error) {
-      console.warn('Could not save this response for offline use.', error);
+      console.warn('Could not save recipe cache or synchronization metadata.', error);
     }
   }
 
@@ -296,6 +324,14 @@ export const mealApi = createApi({
         categoriesResponseSchema.parse(response).categories ?? [],
       providesTags: ['Category'],
     }),
+    getMealAreas: builder.query<string[], void>({
+      query: () => 'list.php?a=list',
+      transformResponse: (response: unknown) =>
+        areasResponseSchema
+          .parse(response)
+          .meals?.map(({ strArea }) => strArea) ?? [],
+      providesTags: ['Category'],
+    }),
     searchMeals: builder.query<Meal[], string>({
       query: (searchTerm) =>
         `search.php?s=${encodeURIComponent(searchTerm)}`,
@@ -310,7 +346,19 @@ export const mealApi = createApi({
         mealListResponseSchema.parse(response).meals ?? [],
       providesTags: ['Meal'],
     }),
+    filterMealsByArea: builder.query<Meal[], string>({
+      query: (area) => `filter.php?a=${encodeURIComponent(area)}`,
+      transformResponse: (response: unknown) =>
+        mealListResponseSchema.parse(response).meals ?? [],
+      providesTags: ['Meal'],
+    }),
     getFeaturedMeal: builder.query<Meal | null, void>({
+      query: () => 'random.php',
+      transformResponse: (response: unknown) =>
+        mealListResponseSchema.parse(response).meals?.[0] ?? null,
+      providesTags: ['Meal'],
+    }),
+    getRandomMeal: builder.query<Meal | null, void>({
       query: () => 'random.php',
       transformResponse: (response: unknown) =>
         mealListResponseSchema.parse(response).meals?.[0] ?? null,
@@ -330,8 +378,11 @@ export const mealApi = createApi({
 
 export const {
   useGetMealCategoriesQuery,
+  useGetMealAreasQuery,
   useSearchMealsQuery,
   useFilterMealsByCategoryQuery,
+  useFilterMealsByAreaQuery,
   useGetFeaturedMealQuery,
+  useLazyGetRandomMealQuery,
   useGetRecipeDetailsQuery,
 } = mealApi;

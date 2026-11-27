@@ -11,6 +11,10 @@ jest.mock('@react-native-async-storage/async-storage', () => {
     default: {
       clear: jest.fn(async () => values.clear()),
       getItem: jest.fn(async (key: string) => values.get(key) ?? null),
+      getAllKeys: jest.fn(async () => Array.from(values.keys())),
+      multiRemove: jest.fn(async (keys: string[]) =>
+        keys.forEach((key) => values.delete(key)),
+      ),
       removeItem: jest.fn(async (key: string) => values.delete(key)),
       setItem: jest.fn(async (key: string, value: string) =>
         values.set(key, value),
@@ -66,5 +70,28 @@ describe('recipeCache', () => {
     await expect(
       AsyncStorage.getItem('craveapp.recipes.cache.v1.search.teriyaki'),
     ).resolves.toBeNull();
+  });
+
+  it('keeps the persistent cache bounded to the most recent 60 entries', async () => {
+    for (let index = 0; index < 65; index += 1) {
+      await writeRecipeCache(
+        `search.${index}`,
+        { meals: [{ idMeal: String(index), strMeal: `Meal ${index}` }] },
+        cacheSchema,
+      );
+    }
+
+    const cacheKeys = (await AsyncStorage.getAllKeys()).filter((key) =>
+      key.startsWith('craveapp.recipes.cache.v1.'),
+    );
+    expect(cacheKeys).toHaveLength(60);
+    await expect(
+      readRecipeCache('search.0', cacheSchema),
+    ).resolves.toBeNull();
+    await expect(
+      readRecipeCache('search.64', cacheSchema),
+    ).resolves.toEqual({
+      meals: [{ idMeal: '64', strMeal: 'Meal 64' }],
+    });
   });
 });

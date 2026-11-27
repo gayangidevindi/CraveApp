@@ -1,7 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import type { FetchBaseQueryError } from '@reduxjs/toolkit/query';
 import type { SerializedError } from '@reduxjs/toolkit';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -23,14 +23,23 @@ import { useDebouncedValue } from '../../../shared/hooks/useDebouncedValue';
 import { CategoryChip } from '../../../shared/components/CategoryChip';
 import { EmptyState } from '../../../shared/components/EmptyState';
 import { ErrorState } from '../../../shared/components/ErrorState';
-import { LoadingState } from '../../../shared/components/LoadingState';
 import { OfflineBanner } from '../../../shared/components/OfflineBanner';
 import { RecipeCard } from '../../../shared/components/RecipeCard';
+import { RecipeSkeletonCard } from '../../../shared/components/RecipeSkeletonCard';
+import {
+  hydrateRecipeSync,
+} from '../state/recipeSyncSlice';
 import { toggleUserFavourite } from '../state/favouritesSlice';
 import {
+  loadRecentlyViewed,
+} from '../state/recentlyViewedSlice';
+import {
+  useFilterMealsByAreaQuery,
   useFilterMealsByCategoryQuery,
   useGetFeaturedMealQuery,
+  useGetMealAreasQuery,
   useGetMealCategoriesQuery,
+  useLazyGetRandomMealQuery,
   useSearchMealsQuery,
   type Meal,
 } from '../services/mealApi';
@@ -74,31 +83,60 @@ export function HomeScreen({ navigation }: Props) {
   const user = useAppSelector((state) => state.auth.user);
   const networkOffline = useAppSelector((state) => state.network.isOffline);
   const favouritesState = useAppSelector((state) => state.favourites);
+  const recentlyViewedState = useAppSelector((state) => state.recentlyViewed);
+  const lastSyncedAt = useAppSelector(
+    (state) => state.recipeSync.lastSyncedAt,
+  );
   const { width } = useWindowDimensions();
+  const listRef = useRef<FlatList<Meal>>(null);
   const [searchText, setSearchText] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedArea, setSelectedArea] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [showBackToTop, setShowBackToTop] = useState(false);
   const debouncedSearch = useDebouncedValue(searchText.trim(), 350);
   const isDebouncing =
-    selectedCategory === null && searchText.trim() !== debouncedSearch;
+    selectedCategory === null &&
+    selectedArea === null &&
+    searchText.trim() !== debouncedSearch;
   const numberOfColumns = width >= 720 ? 3 : width < 400 ? 1 : 2;
 
   const categoriesQuery = useGetMealCategoriesQuery();
+  const areasQuery = useGetMealAreasQuery();
   const featuredQuery = useGetFeaturedMealQuery();
+  const [requestRandomMeal, randomMealQuery] = useLazyGetRandomMealQuery();
   const searchQuery = useSearchMealsQuery(debouncedSearch, {
-    skip: selectedCategory !== null,
+    skip: selectedCategory !== null || selectedArea !== null,
   });
   const categoryQuery = useFilterMealsByCategoryQuery(
     selectedCategory ?? '',
-    { skip: selectedCategory === null },
+    { skip: selectedCategory === null || selectedArea !== null },
+  );
+  const areaQuery = useFilterMealsByAreaQuery(
+    selectedArea ?? '',
+    { skip: selectedArea === null },
   );
   const recipesQuery =
-    selectedCategory === null ? searchQuery : categoryQuery;
+    selectedCategory !== null
+      ? categoryQuery
+      : selectedArea !== null
+        ? areaQuery
+        : searchQuery;
   const recipes = recipesQuery.data ?? [];
   const featuredMeal = featuredQuery.data;
   const meals = isDebouncing ? [] : recipes;
   const userName = user?.firstName || user?.username || 'there';
   const userId = user ? String(user.id) : null;
+  const recentlyViewed = userId
+    ? (recentlyViewedState.byUser[userId] ?? [])
+    : [];
+  const historyLoaded =
+    userId !== null && recentlyViewedState.loadedByUser[userId] === true;
+  const historyLoading =
+    userId !== null && recentlyViewedState.loadingByUser[userId] === true;
+  const historyError =
+    userId !== null ? recentlyViewedState.errorByUser[userId] : null;
+  const greeting = getTimeGreeting(new Date().getHours());
   const favouriteMeals = userId
     ? (favouritesState.byUser[userId] ?? [])
     : [];
@@ -108,6 +146,16 @@ export function HomeScreen({ navigation }: Props) {
     userId !== null && favouritesState.savingByUser[userId] === true;
   const favouritesError =
     userId !== null ? favouritesState.errorByUser[userId] : null;
+
+  useEffect(() => {
+    if (userId !== null && !historyLoaded && !historyLoading) {
+      void dispatch(loadRecentlyViewed(userId));
+    }
+  }, [dispatch, historyLoaded, historyLoading, userId]);
+
+  useEffect(() => {
+    void dispatch(hydrateRecipeSync());
+  }, [dispatch]);
 
   const toggleFavourite = (meal: Meal) => {
     if (userId !== null) {
@@ -121,9 +169,12 @@ export function HomeScreen({ navigation }: Props) {
     try {
       await Promise.all([
         categoriesQuery.refetch(),
+        areasQuery.refetch(),
         featuredQuery.refetch(),
         selectedCategory === null
-          ? searchQuery.refetch()
+          ? selectedArea === null
+            ? searchQuery.refetch()
+            : areaQuery.refetch()
           : categoryQuery.refetch(),
       ]);
     } finally {
@@ -155,7 +206,19 @@ export function HomeScreen({ navigation }: Props) {
 
   const renderListEmpty = () => {
     if (isDebouncing || recipesQuery.isLoading) {
-      return <LoadingState label="Finding recipes..." />;
+      return (
+        <View style={styles.skeletonGrid}>
+          {Array.from({ length: Math.min(numberOfColumns * 2, 4) }, (_, index) => (
+            <RecipeSkeletonCard
+              key={`recipe-skeleton-${index}`}
+              style={[
+                styles.skeletonCard,
+                numberOfColumns > 1 && styles.gridRecipeCard,
+              ]}
+            />
+          ))}
+        </View>
+      );
     }
 
     if (recipesQuery.isError) {
@@ -173,11 +236,19 @@ export function HomeScreen({ navigation }: Props) {
 
     return (
       <EmptyState
-        title={debouncedSearch ? 'No recipes found' : 'No recipes available'}
+        title={
+          debouncedSearch
+            ? 'No recipes found'
+            : selectedArea
+              ? `No ${selectedArea} recipes found`
+              : 'No recipes available'
+        }
         message={
           debouncedSearch
             ? `No recipes matched "${debouncedSearch}". Try another search.`
-            : 'Try again later to discover more recipes.'
+            : selectedArea
+              ? 'Try another cuisine or clear the current filter.'
+              : 'Try again later to discover more recipes.'
         }
         icon="search"
       />
@@ -187,9 +258,14 @@ export function HomeScreen({ navigation }: Props) {
   const renderHeader = () => (
     <View>
       {networkOffline ? <OfflineBanner /> : null}
+      <Text style={styles.syncStatus}>
+        {lastSyncedAt === null
+          ? 'Recipes sync when a connection is available.'
+          : `Last synced ${new Date(lastSyncedAt).toLocaleString()}`}
+      </Text>
       <View style={styles.topBar}>
         <View style={styles.greeting}>
-          <Text style={styles.greetingLabel}>Good food, good to see you</Text>
+          <Text style={styles.greetingLabel}>{greeting}, good to see you</Text>
           <Text style={styles.userName}>{userName}</Text>
         </View>
         <Pressable
@@ -227,8 +303,10 @@ export function HomeScreen({ navigation }: Props) {
               setSearchText(value);
               if (value.length > 0) {
                 setSelectedCategory(null);
+                setSelectedArea(null);
               }
             }}
+            onClear={() => setSearchText('')}
           />
         </View>
       </View>
@@ -258,7 +336,10 @@ export function HomeScreen({ navigation }: Props) {
             <CategoryChip
               label="All"
               selected={selectedCategory === null}
-              onPress={() => setSelectedCategory(null)}
+              onPress={() => {
+                setSelectedCategory(null);
+                setSelectedArea(null);
+              }}
             />
             {categoriesQuery.data?.map((category) => (
               <CategoryChip
@@ -267,6 +348,7 @@ export function HomeScreen({ navigation }: Props) {
                 selected={selectedCategory === category.strCategory}
                 onPress={() => {
                   setSearchText('');
+                  setSelectedArea(null);
                   setSelectedCategory(category.strCategory);
                 }}
               />
@@ -274,6 +356,89 @@ export function HomeScreen({ navigation }: Props) {
           </ScrollView>
         )}
       </View>
+
+      <View style={styles.categoriesSection}>
+        <Text style={styles.sectionTitle}>Cuisines</Text>
+        {areasQuery.isLoading ? (
+          <View style={styles.categoriesLoading}>
+            <ActivityIndicator size="small" color={theme.colors.deepOrange} />
+            <Text style={styles.supportingText}>Loading cuisines...</Text>
+          </View>
+        ) : areasQuery.isError ? (
+          <ErrorState
+            title="Cuisines unavailable"
+            message={getErrorMessage(areasQuery.error)}
+            retryLabel="Retry"
+            onRetry={() => {
+              void areasQuery.refetch();
+            }}
+          />
+        ) : (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.categoryList}
+          >
+            <CategoryChip
+              label="All cuisines"
+              selected={selectedArea === null}
+              onPress={() => setSelectedArea(null)}
+            />
+            {areasQuery.data?.map((area) => (
+              <CategoryChip
+                key={area}
+                label={area}
+                selected={selectedArea === area}
+                onPress={() => {
+                  setSearchText('');
+                  setSelectedCategory(null);
+                  setSelectedArea(area);
+                }}
+              />
+            ))}
+          </ScrollView>
+        )}
+      </View>
+
+      {historyLoaded && recentlyViewed.length > 0 ? (
+        <View style={styles.recentSection}>
+          <Text style={styles.sectionTitle}>Recently viewed</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.recentList}
+          >
+            {recentlyViewed.map((meal) => (
+              <RecipeCard
+                key={`recent-${meal.idMeal}`}
+                title={meal.strMeal}
+                imageSource={
+                  meal.strMealThumb ? { uri: meal.strMealThumb } : undefined
+                }
+                category={meal.strCategory ?? undefined}
+                isFavorite={favouriteMeals.some(
+                  (favourite) => favourite.idMeal === meal.idMeal,
+                )}
+                favoriteDisabled={!favouritesLoaded || favouritesSaving}
+                onFavoritePress={() => toggleFavourite(meal)}
+                onPress={() => openRecipe(meal)}
+                style={styles.recentCard}
+              />
+            ))}
+          </ScrollView>
+        </View>
+      ) : historyError ? (
+        <ErrorState
+          title="Recently viewed recipes unavailable"
+          message={historyError}
+          retryLabel="Retry"
+          onRetry={() => {
+            if (userId !== null) {
+              void dispatch(loadRecentlyViewed(userId));
+            }
+          }}
+        />
+      ) : null}
 
       <View style={styles.featuredSection}>
         <Text style={styles.sectionTitle}>Featured recipe</Text>
@@ -324,10 +489,89 @@ export function HomeScreen({ navigation }: Props) {
         )}
       </View>
 
+      <View style={styles.randomSection}>
+        <View style={styles.randomHeading}>
+          <View style={styles.randomCopy}>
+            <Text style={styles.sectionTitle}>Feeling lucky?</Text>
+            <Text style={styles.supportingText}>
+              Discover a random recipe from TheMealDB.
+            </Text>
+          </View>
+          <Pressable
+            onPress={() => {
+              void requestRandomMeal();
+            }}
+            disabled={randomMealQuery.isFetching}
+            accessibilityRole="button"
+            accessibilityLabel="Discover a random recipe"
+            accessibilityState={{ disabled: randomMealQuery.isFetching }}
+            style={({ pressed }) => [
+              styles.randomButton,
+              pressed && styles.pressed,
+              randomMealQuery.isFetching && styles.disabled,
+            ]}
+          >
+            {randomMealQuery.isFetching ? (
+              <ActivityIndicator color={theme.colors.onPrimary} />
+            ) : (
+              <Feather
+                name="shuffle"
+                size={18}
+                color={theme.colors.onPrimary}
+                accessible={false}
+              />
+            )}
+            <Text style={styles.randomButtonText}>Surprise me</Text>
+          </Pressable>
+        </View>
+        {randomMealQuery.isError ? (
+          <ErrorState
+            title="Random recipe unavailable"
+            message={getErrorMessage(randomMealQuery.error)}
+            retryLabel="Try again"
+            onRetry={() => {
+              void requestRandomMeal();
+            }}
+          />
+        ) : randomMealQuery.data ? (
+          <RecipeCard
+            title={randomMealQuery.data.strMeal}
+            imageSource={
+              randomMealQuery.data.strMealThumb
+                ? { uri: randomMealQuery.data.strMealThumb }
+                : undefined
+            }
+            category={randomMealQuery.data.strCategory ?? undefined}
+            description={
+              randomMealQuery.data.strArea
+                ? `${randomMealQuery.data.strArea} cuisine`
+                : undefined
+            }
+            isFavorite={favouriteMeals.some(
+              (favourite) => favourite.idMeal === randomMealQuery.data?.idMeal,
+            )}
+            favoriteDisabled={!favouritesLoaded || favouritesSaving}
+            onFavoritePress={() => {
+              if (randomMealQuery.data) {
+                toggleFavourite(randomMealQuery.data);
+              }
+            }}
+            onPress={() => {
+              if (randomMealQuery.data) {
+                openRecipe(randomMealQuery.data);
+              }
+            }}
+            style={styles.featuredCard}
+          />
+        ) : null}
+      </View>
+
       <View style={styles.recipesHeading}>
         <Text style={styles.sectionTitle}>
           {selectedCategory
             ? `${selectedCategory} recipes`
+            : selectedArea
+              ? `${selectedArea} cuisine`
             : debouncedSearch
               ? 'Search results'
               : 'Explore recipes'}
@@ -361,6 +605,7 @@ export function HomeScreen({ navigation }: Props) {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <FlatList
+        ref={listRef}
         key={numberOfColumns}
         data={meals}
         extraData={selectedCategory}
@@ -384,8 +629,32 @@ export function HomeScreen({ navigation }: Props) {
             colors={[theme.colors.deepOrange]}
           />
         }
+        onScroll={(event) => {
+          setShowBackToTop(event.nativeEvent.contentOffset.y > 480);
+        }}
+        scrollEventThrottle={100}
         showsVerticalScrollIndicator={false}
       />
+      {showBackToTop ? (
+        <Pressable
+          onPress={() => {
+            listRef.current?.scrollToOffset({ offset: 0, animated: true });
+          }}
+          accessibilityRole="button"
+          accessibilityLabel="Back to top"
+          style={({ pressed }) => [
+            styles.backToTop,
+            pressed && styles.pressed,
+          ]}
+        >
+          <Feather
+            name="arrow-up"
+            size={20}
+            color={theme.colors.onPrimary}
+            accessible={false}
+          />
+        </Pressable>
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -393,24 +662,57 @@ export function HomeScreen({ navigation }: Props) {
 interface CustomSearchInputProps {
   value: string;
   onChangeText: (value: string) => void;
+  onClear: () => void;
 }
 
-function CustomSearchInput({ value, onChangeText }: CustomSearchInputProps) {
+function CustomSearchInput({
+  value,
+  onChangeText,
+  onClear,
+}: CustomSearchInputProps) {
   const { theme, styles } = useCraveThemeStyles(createStyles);
 
   return (
-    <TextInput
-      accessibilityLabel="Search recipes"
-      placeholder="Search recipes by name"
-      placeholderTextColor={theme.colors.secondaryText}
-      value={value}
-      onChangeText={onChangeText}
-      autoCapitalize="none"
-      autoCorrect={false}
-      returnKeyType="search"
-      style={styles.searchTextInput}
-    />
+    <View style={styles.searchInputContent}>
+      <TextInput
+        accessibilityLabel="Search recipes"
+        placeholder="Search recipes by name"
+        placeholderTextColor={theme.colors.secondaryText}
+        value={value}
+        onChangeText={onChangeText}
+        autoCapitalize="none"
+        autoCorrect={false}
+        returnKeyType="search"
+        style={styles.searchTextInput}
+      />
+      {value.length > 0 ? (
+        <Pressable
+          onPress={onClear}
+          accessibilityRole="button"
+          accessibilityLabel="Clear recipe search"
+          hitSlop={8}
+          style={styles.clearSearchButton}
+        >
+          <Feather
+            name="x-circle"
+            size={20}
+            color={theme.colors.secondaryText}
+            accessible={false}
+          />
+        </Pressable>
+      ) : null}
+    </View>
   );
+}
+
+function getTimeGreeting(hour: number): string {
+  if (hour < 12) {
+    return 'Good morning';
+  }
+  if (hour < 18) {
+    return 'Good afternoon';
+  }
+  return 'Good evening';
 }
 
 function createStyles(theme: import('../../../shared/theme/theme').CraveTheme) {
@@ -430,6 +732,11 @@ function createStyles(theme: import('../../../shared/theme/theme').CraveTheme) {
     justifyContent: 'space-between',
     gap: theme.spacing.md,
     paddingTop: theme.spacing.sm,
+  },
+  syncStatus: {
+    marginTop: theme.spacing.xs,
+    color: theme.colors.secondaryText,
+    fontSize: theme.typography.caption,
   },
   greeting: {
     flex: 1,
@@ -474,13 +781,24 @@ function createStyles(theme: import('../../../shared/theme/theme').CraveTheme) {
     borderRadius: theme.radius.md,
     backgroundColor: theme.colors.card,
   },
+  searchInputContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   searchTextInput: {
     minHeight: 50,
     flex: 1,
     paddingVertical: theme.spacing.sm,
-    paddingRight: theme.spacing.md,
+    paddingRight: theme.spacing.xs,
     color: theme.colors.darkBrown,
     fontSize: theme.typography.body,
+  },
+  clearSearchButton: {
+    width: 48,
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   sectionTitle: {
     color: theme.colors.heading,
@@ -500,8 +818,53 @@ function createStyles(theme: import('../../../shared/theme/theme').CraveTheme) {
     alignItems: 'center',
     gap: theme.spacing.sm,
   },
+  recentSection: {
+    marginTop: theme.spacing.xl,
+  },
+  recentList: {
+    gap: theme.spacing.md,
+    paddingVertical: theme.spacing.md,
+  },
+  recentCard: {
+    width: 210,
+  },
   featuredSection: {
     marginTop: theme.spacing.md,
+  },
+  randomSection: {
+    marginTop: theme.spacing.xl,
+  },
+  randomHeading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: theme.spacing.md,
+  },
+  randomCopy: {
+    flex: 1,
+    gap: theme.spacing.xs,
+  },
+  randomButton: {
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: theme.spacing.xs,
+    paddingHorizontal: theme.spacing.md,
+    borderRadius: theme.radius.pill,
+    backgroundColor: theme.colors.deepOrange,
+  },
+  randomButtonText: {
+    color: theme.colors.onPrimary,
+    fontSize: theme.typography.label,
+    fontWeight: theme.typography.weight.bold,
+  },
+  disabled: {
+    opacity: 0.6,
+  },
+  pressed: {
+    opacity: 0.75,
   },
   featuredLoading: {
     minHeight: 100,
@@ -522,6 +885,16 @@ function createStyles(theme: import('../../../shared/theme/theme').CraveTheme) {
   recipeCard: {
     marginBottom: theme.spacing.md,
   },
+  skeletonGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: theme.spacing.md,
+    paddingTop: theme.spacing.sm,
+  },
+  skeletonCard: {
+    width: '100%',
+    marginBottom: theme.spacing.md,
+  },
   gridRecipeCard: {
     width: 'auto',
     flex: 1,
@@ -535,6 +908,18 @@ function createStyles(theme: import('../../../shared/theme/theme').CraveTheme) {
     color: theme.colors.chocolateBrown,
     fontSize: theme.typography.caption,
     textAlign: 'center',
+  },
+  backToTop: {
+    position: 'absolute',
+    right: theme.spacing.lg,
+    bottom: theme.spacing.lg,
+    width: 52,
+    height: 52,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: theme.radius.pill,
+    backgroundColor: theme.colors.deepOrange,
+    ...theme.shadows.floating,
   },
   });
 }
