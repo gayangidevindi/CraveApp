@@ -36,6 +36,7 @@ import {
 } from '../state/recentlyViewedSlice';
 import { useAppDispatch, useAppSelector } from '../../../store/hooks';
 import { useCraveThemeStyles } from '../../../shared/theme/useCraveTheme';
+import { userMessages } from '../../../shared/constants/userMessages';
 import { useGetRecipeDetailsQuery } from '../services/mealApi';
 import {
   readIngredientChecklist,
@@ -50,17 +51,14 @@ import { CookingModeModal } from '../components/CookingModeModal';
 
 type Props = NativeStackScreenProps<MainStackParamList, 'RecipeDetails'>;
 type QueryError = FetchBaseQueryError | SerializedError | undefined;
+type ActionFeedback = { message: string; tone: 'success' | 'error' | 'info' };
 
 function getErrorMessage(error: QueryError): string {
-  if (error && 'status' in error && error.status === 'CUSTOM_ERROR') {
-    return error.error;
-  }
-
   if (error && 'status' in error && error.status === 'FETCH_ERROR') {
-    return 'Unable to reach TheMealDB. Check your connection and try again.';
+    return userMessages.connectionTrouble;
   }
 
-  return 'This recipe could not be loaded. Please try again.';
+  return userMessages.unexpectedError;
 }
 
 export function RecipeDetailsScreen({ navigation, route }: Props) {
@@ -71,7 +69,8 @@ export function RecipeDetailsScreen({ navigation, route }: Props) {
   const [heartScale] = useState(() => new Animated.Value(1));
   const [imageFailed, setImageFailed] = useState(false);
   const [tutorialError, setTutorialError] = useState<string | null>(null);
-  const [actionFeedback, setActionFeedback] = useState<string | null>(null);
+  const [actionFeedback, setActionFeedback] =
+    useState<ActionFeedback | null>(null);
   const [checkedIngredients, setCheckedIngredients] = useState<string[]>([]);
   const [checklistLoadedFor, setChecklistLoadedFor] = useState<string | null>(
     null,
@@ -92,14 +91,16 @@ export function RecipeDetailsScreen({ navigation, route }: Props) {
     userId !== null && favouritesState.loadedByUser[userId] === true;
   const favouritesSaving =
     userId !== null && favouritesState.savingByUser[userId] === true;
-  const favouritesError =
-    userId !== null ? favouritesState.errorByUser[userId] : null;
   const isFavorite = favourites.some(
     (favourite) => favourite.idMeal === recipeId,
   );
   const recentlyViewedLoaded =
     userId !== null &&
     recentlyViewedState.loadedByUser[userId] === true;
+  const showFeedback = (
+    message: string,
+    tone: ActionFeedback['tone'] = 'success',
+  ) => setActionFeedback({ message, tone });
 
   useEffect(() => {
     if (
@@ -163,9 +164,7 @@ export function RecipeDetailsScreen({ navigation, route }: Props) {
       .catch((error: unknown) => {
         if (active) {
           setChecklistError(
-            error instanceof Error
-              ? error.message
-              : 'Saved ingredient checklist could not be loaded.',
+            'Unable to load your saved ingredient progress. Please try again.',
           );
           setChecklistLoadedFor(checklistKey);
         }
@@ -186,16 +185,14 @@ export function RecipeDetailsScreen({ navigation, route }: Props) {
           parsedUrl.hostname === 'youtu.be');
 
       if (!isYoutubeUrl) {
-        setTutorialError('The tutorial link is not a valid YouTube address.');
+        setTutorialError('That video link does not look right.');
         return;
       }
 
       await Linking.openURL(parsedUrl.toString());
       setTutorialError(null);
     } catch {
-      setTutorialError(
-        'Could not open the tutorial. Please try again or open YouTube manually.',
-      );
+      setTutorialError('We could not open that video. Please try again.');
     }
   };
 
@@ -223,13 +220,13 @@ export function RecipeDetailsScreen({ navigation, route }: Props) {
 
     try {
       await dispatch(toggleUserFavourite({ userId, meal })).unwrap();
-      setActionFeedback(
+      showFeedback(
         isFavorite
-          ? 'Recipe removed from favourites.'
-          : 'Recipe added to favourites.',
+          ? 'Removed from favourites.'
+          : 'Added to favourites!',
       );
     } catch {
-      setActionFeedback('Favourite could not be updated. Please try again.');
+      showFeedback(userMessages.unableToSaveFavourites, 'error');
     }
   };
 
@@ -237,7 +234,7 @@ export function RecipeDetailsScreen({ navigation, route }: Props) {
     return (
       <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
         {isOffline ? <OfflineBanner /> : null}
-        <LoadingState label="Loading recipe details..." />
+        <LoadingState label="Loading your recipe..." />
       </SafeAreaView>
     );
   }
@@ -247,7 +244,7 @@ export function RecipeDetailsScreen({ navigation, route }: Props) {
       <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
         {isOffline ? <OfflineBanner /> : null}
         <ErrorState
-          title="Recipe unavailable"
+          title="Unable to load this recipe"
           message={getErrorMessage(error)}
           retryLabel="Try again"
           onRetry={() => {
@@ -266,8 +263,8 @@ export function RecipeDetailsScreen({ navigation, route }: Props) {
           title="Recipe not found"
           message={
             recipeId
-              ? 'This recipe is no longer available from TheMealDB.'
-              : 'A valid recipe ID is required to show details.'
+              ? 'This recipe is not available right now.'
+              : 'We could not find this recipe.'
           }
           icon="coffee"
           actionLabel="Go back"
@@ -280,7 +277,9 @@ export function RecipeDetailsScreen({ navigation, route }: Props) {
   const ingredients = parseRecipeIngredients(meal);
   const instructions = parseRecipeInstructions(meal.strInstructions);
   const youtubeUrl = meal.strYoutube?.trim();
-  const imageWidth = Math.min(width - theme.spacing.lg * 2, 720);
+  const horizontalGutter =
+    width >= 760 ? theme.spacing.xl : theme.spacing.lg;
+  const imageWidth = Math.min(width - horizontalGutter * 2, 720);
   const checklistKey = userId === null ? null : `${userId}/${recipeId}`;
   const checklistReady =
     checklistKey !== null && checklistLoadedFor === checklistKey;
@@ -299,13 +298,8 @@ export function RecipeDetailsScreen({ navigation, route }: Props) {
     try {
       await saveIngredientChecklist(userId, recipeId, nextChecked);
       setCheckedIngredients(nextChecked);
-      setActionFeedback('Ingredient checklist updated.');
-    } catch (checklistSaveError) {
-      setChecklistError(
-        checklistSaveError instanceof Error
-          ? checklistSaveError.message
-          : 'Ingredient checklist could not be saved.',
-      );
+    } catch {
+      setChecklistError('Unable to save your ingredients. Please try again.');
     } finally {
       setChecklistSaving(false);
     }
@@ -331,7 +325,7 @@ export function RecipeDetailsScreen({ navigation, route }: Props) {
             }
             throw error;
           }
-          setActionFeedback('Recipe ready to share.');
+          showFeedback('Ready to share.');
         } else {
           const copied = await Clipboard.setStringAsync(
             `${meal.strMeal}\nRecipe details: ${sourceUrl}`,
@@ -339,7 +333,7 @@ export function RecipeDetailsScreen({ navigation, route }: Props) {
           if (!copied) {
             throw new Error('Clipboard access was not available.');
           }
-          setActionFeedback('Recipe link copied to clipboard.');
+          showFeedback('Recipe link copied.');
         }
       } else {
         const result = await Share.share(
@@ -351,17 +345,17 @@ export function RecipeDetailsScreen({ navigation, route }: Props) {
           { dialogTitle: `Share ${meal.strMeal}` },
         );
         if (result.action !== Share.dismissedAction) {
-          setActionFeedback('Recipe ready to share.');
+          showFeedback('Ready to share.');
         }
       }
     } catch {
-      setActionFeedback('Could not open the share menu. Please try again.');
+      showFeedback('Unable to share this recipe. Please try again.', 'error');
     }
   };
 
   const copyIngredients = async () => {
     if (ingredients.length === 0) {
-      setActionFeedback('No ingredients are available to copy.');
+      showFeedback('There are no ingredients available to copy.', 'info');
       return;
     }
 
@@ -377,11 +371,9 @@ export function RecipeDetailsScreen({ navigation, route }: Props) {
       if (!copied) {
         throw new Error('Clipboard access was not available.');
       }
-      setActionFeedback('Ingredients copied to clipboard.');
+      showFeedback('Ingredients copied.');
     } catch {
-      setActionFeedback(
-        'Could not copy ingredients. Check clipboard permissions and try again.',
-      );
+      showFeedback('Unable to copy the ingredients. Please try again.', 'error');
     }
   };
 
@@ -405,48 +397,84 @@ export function RecipeDetailsScreen({ navigation, route }: Props) {
           {isOffline ? <OfflineBanner /> : null}
           <View style={styles.actions}>
             <Pressable
-              onPress={() => {
-                void toggleFavourite();
-              }}
-              disabled={
-                userId === null || !favouritesLoaded || favouritesSaving
-              }
+              onPress={() => navigation.goBack()}
               accessibilityRole="button"
-              accessibilityLabel={
-                isFavorite
-                  ? `Remove ${meal.strMeal} from favourites`
-                  : `Add ${meal.strMeal} to favourites`
-              }
-              accessibilityState={{
-                selected: isFavorite,
-                disabled:
-                  userId === null || !favouritesLoaded || favouritesSaving,
-              }}
-              hitSlop={4}
+              accessibilityLabel="Go back"
+              hitSlop={8}
               style={({ pressed }) => [
                 styles.iconButton,
                 pressed && styles.pressed,
-                (userId === null || !favouritesLoaded || favouritesSaving) &&
-                  styles.disabled,
               ]}
             >
-              <Animated.View style={{ transform: [{ scale: heartScale }] }}>
+              <Feather
+                name="arrow-left"
+                size={21}
+                color={theme.colors.darkBrown}
+                accessible={false}
+              />
+            </Pressable>
+            <Text style={styles.screenEyebrow}>RECIPE DETAILS</Text>
+            <View style={styles.actionGroup}>
+              <Pressable
+                onPress={() => {
+                  void shareRecipe();
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={`Share ${meal.strMeal}`}
+                style={({ pressed }) => [
+                  styles.iconButton,
+                  pressed && styles.pressed,
+                ]}
+              >
                 <Feather
-                  name="heart"
-                  size={22}
-                  color={isFavorite ? theme.colors.deepOrange : theme.colors.darkBrown}
-                  fill={isFavorite ? theme.colors.deepOrange : 'transparent'}
+                  name="share-2"
+                  size={19}
+                  color={theme.colors.darkBrown}
                   accessible={false}
                 />
-              </Animated.View>
-            </Pressable>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  void toggleFavourite();
+                }}
+                disabled={
+                  userId === null || !favouritesLoaded || favouritesSaving
+                }
+                accessibilityRole="button"
+                accessibilityLabel={
+                  isFavorite
+                    ? `Remove ${meal.strMeal} from favourites`
+                    : `Add ${meal.strMeal} to favourites`
+                }
+                accessibilityState={{
+                  selected: isFavorite,
+                  disabled:
+                    userId === null || !favouritesLoaded || favouritesSaving,
+                }}
+                hitSlop={4}
+                style={({ pressed }) => [
+                  styles.iconButton,
+                  pressed && styles.pressed,
+                  (userId === null || !favouritesLoaded || favouritesSaving) &&
+                    styles.disabled,
+                ]}
+              >
+                <Animated.View style={{ transform: [{ scale: heartScale }] }}>
+                  <Feather
+                    name="heart"
+                    size={21}
+                    color={
+                      isFavorite
+                        ? theme.colors.deepOrange
+                        : theme.colors.darkBrown
+                    }
+                    fill={isFavorite ? theme.colors.deepOrange : 'transparent'}
+                    accessible={false}
+                  />
+                </Animated.View>
+              </Pressable>
+            </View>
           </View>
-          {favouritesError ? (
-            <Text style={styles.favoriteError} accessibilityRole="alert">
-              {favouritesError}
-            </Text>
-          ) : null}
-
           {meal.strMealThumb && !imageFailed ? (
             <Image
               key={meal.idMeal}
@@ -508,9 +536,38 @@ export function RecipeDetailsScreen({ navigation, route }: Props) {
           ) : null}
 
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>
-              Ingredients ({checkedIngredientCount}/{ingredients.length} checked)
-            </Text>
+            <View style={styles.sectionHeading}>
+              <View style={styles.sectionHeadingCopy}>
+                <Text style={styles.sectionTitle}>Ingredients</Text>
+                <Text style={styles.sectionSubtitle}>
+                  Check items as you prepare them.
+                </Text>
+              </View>
+              <Text style={styles.ingredientCount}>
+                {checkedIngredientCount}/{ingredients.length}
+              </Text>
+            </View>
+            {ingredients.length > 0 ? (
+              <View
+                accessibilityRole="progressbar"
+                accessibilityLabel="Ingredient checklist progress"
+                accessibilityValue={{
+                  min: 0,
+                  max: ingredients.length,
+                  now: checkedIngredientCount,
+                }}
+                style={styles.ingredientProgressTrack}
+              >
+                <View
+                  style={[
+                    styles.ingredientProgressFill,
+                    {
+                      width: `${(checkedIngredientCount / ingredients.length) * 100}%`,
+                    },
+                  ]}
+                />
+              </View>
+            ) : null}
             {ingredients.length > 0 ? (
               <View style={styles.ingredientActions}>
                 <Pressable
@@ -621,11 +678,11 @@ export function RecipeDetailsScreen({ navigation, route }: Props) {
                     styles.instructionSectionTitle,
                   ]}
                 >
-                  Cooking Instructions
+                  Cooking instructions
                 </Text>
                 <Text style={styles.instructionCount}>
                   {instructions.length}{' '}
-                  {instructions.length === 1 ? 'valid step' : 'valid steps'}
+                  {instructions.length === 1 ? 'step' : 'steps'}
                 </Text>
               </View>
               <Pressable
@@ -634,8 +691,8 @@ export function RecipeDetailsScreen({ navigation, route }: Props) {
                 accessibilityRole="button"
                 accessibilityLabel={
                   instructions.length > 0
-                    ? 'Start Cooking Mode'
-                    : 'Cooking Mode unavailable because there are no valid instructions'
+                    ? 'Start cooking'
+                    : 'Cooking mode is unavailable for this recipe'
                 }
                 accessibilityState={{ disabled: instructions.length === 0 }}
                 style={({ pressed }) => [
@@ -652,7 +709,7 @@ export function RecipeDetailsScreen({ navigation, route }: Props) {
                 />
                 <Text style={styles.cookingModeButtonText}>
                   {instructions.length > 0
-                    ? 'Start Cooking'
+                    ? 'Start cooking'
                     : 'Unavailable'}
                 </Text>
               </Pressable>
@@ -699,7 +756,7 @@ export function RecipeDetailsScreen({ navigation, route }: Props) {
               </View>
             ) : (
               <Text style={styles.emptyCopy}>
-                No valid cooking instructions are available for this recipe.
+                Cooking instructions are not available for this recipe.
               </Text>
             )}
           </View>
@@ -727,7 +784,7 @@ export function RecipeDetailsScreen({ navigation, route }: Props) {
               </Pressable>
             ) : (
               <Text style={styles.emptyCopy}>
-                No YouTube tutorial is available for this recipe.
+                No video tutorial is available for this recipe.
               </Text>
             )}
             {tutorialError ? (
@@ -757,9 +814,6 @@ export function RecipeDetailsScreen({ navigation, route }: Props) {
             <Text style={styles.shareButtonText}>Share recipe</Text>
           </Pressable>
 
-          <Text style={styles.attribution}>
-            Recipe data and imagery provided by TheMealDB.
-          </Text>
         </View>
       </ScrollView>
 
@@ -772,12 +826,8 @@ export function RecipeDetailsScreen({ navigation, route }: Props) {
       ) : null}
       <View style={styles.toastContainer} pointerEvents="box-none">
         <ToastMessage
-          message={actionFeedback}
-          tone={
-            actionFeedback?.toLowerCase().includes('could not')
-              ? 'error'
-              : 'success'
-          }
+          message={actionFeedback?.message ?? null}
+          tone={actionFeedback?.tone ?? 'success'}
           onDismiss={() => setActionFeedback(null)}
         />
       </View>
@@ -805,8 +855,22 @@ function createStyles(theme: import('../../../shared/theme/theme').CraveTheme) {
   },
   actions: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
-    marginTop: theme.spacing.sm,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: theme.spacing.sm,
+    paddingVertical: theme.spacing.sm,
+  },
+  actionGroup: {
+    flexDirection: 'row',
+    gap: theme.spacing.xs,
+  },
+  screenEyebrow: {
+    flex: 1,
+    color: theme.colors.secondaryText,
+    fontSize: theme.typography.overline,
+    fontWeight: theme.typography.weight.bold,
+    letterSpacing: 0.8,
+    textAlign: 'center',
   },
   toastContainer: {
     position: 'absolute',
@@ -820,41 +884,37 @@ function createStyles(theme: import('../../../shared/theme/theme').CraveTheme) {
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: theme.radius.pill,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
     backgroundColor: theme.colors.card,
-    ...theme.shadows.card,
   },
   pressed: {
     opacity: 0.75,
-  },
-  favoriteError: {
-    marginTop: theme.spacing.xs,
-    color: theme.colors.deepOrange,
-    fontSize: theme.typography.caption,
-    textAlign: 'right',
   },
   disabled: {
     opacity: 0.6,
   },
   heroImage: {
     width: '100%',
-    marginTop: theme.spacing.md,
-    borderRadius: theme.radius.lg,
+    marginTop: theme.spacing.sm,
+    borderRadius: theme.radius.xl,
     backgroundColor: theme.colors.softYellow,
+    ...theme.shadows.card,
   },
   imagePlaceholder: {
     width: '100%',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: theme.spacing.md,
-    borderRadius: theme.radius.lg,
+    marginTop: theme.spacing.sm,
+    borderRadius: theme.radius.xl,
     backgroundColor: theme.colors.softYellow,
   },
   title: {
     marginTop: theme.spacing.lg,
     color: theme.colors.heading,
-    fontSize: theme.typography.title,
+    fontSize: theme.typography.display,
     fontWeight: theme.typography.weight.bold,
-    lineHeight: theme.typography.lineHeight.title,
+    lineHeight: theme.typography.lineHeight.display,
   },
   metadata: {
     flexDirection: 'row',
@@ -869,7 +929,9 @@ function createStyles(theme: import('../../../shared/theme/theme').CraveTheme) {
     gap: theme.spacing.xs,
     paddingHorizontal: theme.spacing.md,
     borderRadius: theme.radius.pill,
-    backgroundColor: theme.colors.softYellow,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.card,
   },
   metadataText: {
     color: theme.colors.darkBrown,
@@ -885,15 +947,49 @@ function createStyles(theme: import('../../../shared/theme/theme').CraveTheme) {
     marginTop: theme.spacing.xl,
   },
   sectionTitle: {
-    marginBottom: theme.spacing.md,
     color: theme.colors.heading,
     fontSize: theme.typography.heading,
     fontWeight: theme.typography.weight.bold,
   },
+  sectionHeading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: theme.spacing.md,
+  },
+  sectionHeadingCopy: {
+    flex: 1,
+    gap: theme.spacing.xxs,
+  },
+  sectionSubtitle: {
+    color: theme.colors.secondaryText,
+    fontSize: theme.typography.caption,
+    lineHeight: theme.typography.lineHeight.caption,
+  },
+  ingredientCount: {
+    color: theme.colors.deepOrange,
+    fontSize: theme.typography.body,
+    fontWeight: theme.typography.weight.bold,
+  },
+  ingredientProgressTrack: {
+    height: 7,
+    overflow: 'hidden',
+    marginTop: theme.spacing.sm,
+    borderRadius: theme.radius.pill,
+    backgroundColor: theme.colors.border,
+  },
+  ingredientProgressFill: {
+    height: '100%',
+    borderRadius: theme.radius.pill,
+    backgroundColor: theme.colors.primary,
+  },
   ingredientList: {
     gap: theme.spacing.sm,
+    marginTop: theme.spacing.md,
     padding: theme.spacing.md,
-    borderRadius: theme.radius.lg,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: theme.radius.xl,
     backgroundColor: theme.colors.card,
     ...theme.shadows.card,
   },
@@ -901,7 +997,8 @@ function createStyles(theme: import('../../../shared/theme/theme').CraveTheme) {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: theme.spacing.sm,
-    marginBottom: theme.spacing.sm,
+    marginTop: theme.spacing.sm,
+    marginBottom: theme.spacing.xs,
   },
   secondaryAction: {
     minHeight: 44,
@@ -909,17 +1006,22 @@ function createStyles(theme: import('../../../shared/theme/theme').CraveTheme) {
     alignItems: 'center',
     gap: theme.spacing.xs,
     paddingHorizontal: theme.spacing.sm,
+    borderRadius: theme.radius.md,
+    backgroundColor: theme.colors.elevatedSurface,
   },
   secondaryActionText: {
-    color: theme.colors.deepOrange,
+    color: theme.colors.darkBrown,
     fontSize: theme.typography.caption,
     fontWeight: theme.typography.weight.semibold,
   },
   ingredientRow: {
-    minHeight: 48,
+    minHeight: 52,
     flexDirection: 'row',
     alignItems: 'center',
     gap: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.xs,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: theme.colors.border,
   },
   ingredientText: {
     flex: 1,
@@ -941,7 +1043,7 @@ function createStyles(theme: import('../../../shared/theme/theme').CraveTheme) {
   },
   instructionHeadingGroup: {
     flex: 1,
-    gap: 2,
+    gap: theme.spacing.xs,
   },
   instructionSectionTitle: {
     marginBottom: 0,
@@ -958,7 +1060,8 @@ function createStyles(theme: import('../../../shared/theme/theme').CraveTheme) {
     gap: theme.spacing.xs,
     paddingHorizontal: theme.spacing.md,
     borderRadius: theme.radius.pill,
-    backgroundColor: theme.colors.deepOrange,
+    backgroundColor: theme.colors.primary,
+    ...theme.shadows.button,
   },
   cookingModeButtonText: {
     color: theme.colors.onPrimary,
@@ -990,10 +1093,10 @@ function createStyles(theme: import('../../../shared/theme/theme').CraveTheme) {
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: theme.radius.pill,
-    backgroundColor: theme.colors.deepOrange,
+    backgroundColor: theme.colors.primary,
   },
   stepNumberText: {
-    color: theme.colors.white,
+    color: theme.colors.onPrimary,
     fontSize: theme.typography.caption,
     fontWeight: theme.typography.weight.bold,
   },
@@ -1009,7 +1112,7 @@ function createStyles(theme: import('../../../shared/theme/theme').CraveTheme) {
     gap: theme.spacing.xs,
     paddingHorizontal: theme.spacing.sm,
     borderRadius: theme.radius.pill,
-    backgroundColor: theme.colors.softYellow,
+    backgroundColor: theme.colors.elevatedSurface,
   },
   instructionDurationText: {
     color: theme.colors.deepOrange,
@@ -1017,12 +1120,12 @@ function createStyles(theme: import('../../../shared/theme/theme').CraveTheme) {
     fontWeight: theme.typography.weight.semibold,
   },
   instructionText: {
-    color: theme.colors.darkBrown,
+    color: theme.colors.text,
     fontSize: theme.typography.body,
     lineHeight: theme.typography.lineHeight.body,
   },
   emptyCopy: {
-    color: theme.colors.chocolateBrown,
+    color: theme.colors.secondaryText,
     fontSize: theme.typography.body,
     lineHeight: theme.typography.lineHeight.body,
   },
@@ -1037,8 +1140,8 @@ function createStyles(theme: import('../../../shared/theme/theme').CraveTheme) {
     justifyContent: 'center',
     gap: theme.spacing.sm,
     paddingHorizontal: theme.spacing.lg,
-    borderRadius: theme.radius.md,
-    backgroundColor: theme.colors.deepOrange,
+    borderRadius: theme.radius.lg,
+    backgroundColor: theme.colors.primary,
     ...theme.shadows.button,
   },
   tutorialButtonText: {
@@ -1048,7 +1151,7 @@ function createStyles(theme: import('../../../shared/theme/theme').CraveTheme) {
   },
   tutorialError: {
     marginTop: theme.spacing.sm,
-    color: theme.colors.deepOrange,
+    color: theme.colors.error,
     fontSize: theme.typography.caption,
     lineHeight: theme.typography.lineHeight.caption,
     textAlign: 'center',
@@ -1061,20 +1164,14 @@ function createStyles(theme: import('../../../shared/theme/theme').CraveTheme) {
     gap: theme.spacing.sm,
     marginTop: theme.spacing.lg,
     borderWidth: 1,
-    borderColor: theme.colors.deepOrange,
+    borderColor: theme.colors.border,
     borderRadius: theme.radius.md,
     backgroundColor: theme.colors.card,
   },
   shareButtonText: {
-    color: theme.colors.deepOrange,
+    color: theme.colors.darkBrown,
     fontSize: theme.typography.body,
     fontWeight: theme.typography.weight.semibold,
-  },
-  attribution: {
-    marginTop: theme.spacing.xl,
-    color: theme.colors.chocolateBrown,
-    fontSize: theme.typography.caption,
-    textAlign: 'center',
   },
   });
 }

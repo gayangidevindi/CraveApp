@@ -151,10 +151,10 @@ export function CookingModeModal({
       timer.phase === 'complete' &&
       previousTimerPhase.current === 'running'
     ) {
-      setTimerNotice(`Timer complete for step ${timer.sourceStepIndex + 1}.`);
+      setTimerNotice("Time's up!");
     }
     previousTimerPhase.current = timer.phase;
-  }, [timer.phase, timer.sourceStepIndex]);
+  }, [timer.phase]);
 
   const goToNextStep = () => {
     const nextProgress = advanceCookingProgress(
@@ -213,7 +213,7 @@ export function CookingModeModal({
       );
       return startCookingTimer(baseTimer, Date.now());
     });
-    setTimerNotice(null);
+    setTimerNotice('Timer started');
   };
 
   const resetTimer = () => {
@@ -269,7 +269,7 @@ export function CookingModeModal({
                 </View>
               )}
               <View style={styles.titleGroup}>
-                <Text style={styles.eyebrow}>COOKING MODE</Text>
+                <Text style={styles.eyebrow}>Cooking mode</Text>
                 <Text style={styles.title} numberOfLines={2}>
                   {title}
                 </Text>
@@ -304,14 +304,21 @@ export function CookingModeModal({
                   <Feather
                     name="check"
                     size={40}
-                    color={theme.colors.onPrimary}
+                    color={
+                      theme.mode === 'dark'
+                        ? theme.colors.onPrimary
+                        : theme.colors.white
+                    }
                     accessible={false}
                   />
                 </View>
-                <Text style={styles.completionTitle}>Cooking Complete!</Text>
+                <Text style={styles.completionTitle}>Cooking complete!</Text>
                 <Text style={styles.completionRecipe}>{title}</Text>
                 <Text style={styles.completionSummary}>
-                  You completed {instructions.length}{' '}
+                  You&apos;ve finished all the steps. Enjoy your delicious meal!
+                </Text>
+                <Text style={styles.completionStepCount}>
+                  Completed {instructions.length}{' '}
                   {instructions.length === 1 ? 'step' : 'steps'}.
                 </Text>
               </ScrollView>
@@ -326,7 +333,7 @@ export function CookingModeModal({
                     pressed && styles.pressed,
                   ]}
                 >
-                  <Text style={styles.secondaryButtonText}>Back to Recipe</Text>
+                  <Text style={styles.secondaryButtonText}>Back to recipe</Text>
                 </Pressable>
                 <Pressable
                   onPress={restart}
@@ -344,7 +351,7 @@ export function CookingModeModal({
                     color={theme.colors.onPrimary}
                     accessible={false}
                   />
-                  <Text style={styles.primaryButtonText}>Cook Again</Text>
+                  <Text style={styles.primaryButtonText}>Cook again</Text>
                 </Pressable>
               </View>
             </View>
@@ -461,7 +468,7 @@ export function CookingModeModal({
                     </Text>
                     {timer.phase === 'complete' ? (
                       <Text style={styles.timerCompleteText}>
-                        Timer complete
+                        Time&apos;s up!
                       </Text>
                     ) : null}
                     <View style={styles.timerActions}>
@@ -492,11 +499,12 @@ export function CookingModeModal({
                       ) : null}
                       {timer.phase === 'running' ? (
                         <Pressable
-                          onPress={() =>
+                          onPress={() => {
                             setTimer((current) =>
                               pauseCookingTimer(current, Date.now()),
-                            )
-                          }
+                            );
+                            setTimerNotice('Timer paused');
+                          }}
                           accessibilityRole="button"
                           accessibilityLabel="Pause cooking timer"
                           style={({ pressed }) => [
@@ -516,11 +524,12 @@ export function CookingModeModal({
                       ) : null}
                       {timer.phase === 'paused' ? (
                         <Pressable
-                          onPress={() =>
+                          onPress={() => {
                             setTimer((current) =>
                               resumeCookingTimer(current, Date.now()),
-                            )
-                          }
+                            );
+                            setTimerNotice('Timer resumed');
+                          }}
                           accessibilityRole="button"
                           accessibilityLabel="Resume cooking timer"
                           style={({ pressed }) => [
@@ -618,8 +627,8 @@ export function CookingModeModal({
                 >
                   <Text style={styles.primaryButtonText}>
                     {progress.stepIndex === instructions.length - 1
-                      ? 'Finish Cooking'
-                      : 'Next Step'}
+                      ? 'Finish cooking'
+                      : 'Next step'}
                   </Text>
                   <Feather
                     name={
@@ -732,7 +741,7 @@ function createStyles(theme: import('../../../shared/theme/theme').CraveTheme) {
       backgroundColor: theme.colors.deepOrange,
     },
     stepIndicators: {
-      minHeight: 36,
+      minHeight: 48,
       alignItems: 'center',
       justifyContent: 'center',
       alignSelf: 'center',
@@ -740,8 +749,8 @@ function createStyles(theme: import('../../../shared/theme/theme').CraveTheme) {
       paddingHorizontal: theme.spacing.sm,
     },
     stepIndicatorButton: {
-      minWidth: 24,
-      minHeight: 36,
+      minWidth: 48,
+      minHeight: 48,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -937,7 +946,7 @@ function createStyles(theme: import('../../../shared/theme/theme').CraveTheme) {
       alignItems: 'center',
       justifyContent: 'center',
       borderRadius: theme.radius.pill,
-      backgroundColor: theme.colors.deepOrange,
+      backgroundColor: theme.colors.success,
     },
     completionTitle: {
       color: theme.colors.heading,
@@ -955,6 +964,12 @@ function createStyles(theme: import('../../../shared/theme/theme').CraveTheme) {
     completionSummary: {
       color: theme.colors.secondaryText,
       fontSize: theme.typography.body,
+      textAlign: 'center',
+    },
+    completionStepCount: {
+      color: theme.colors.secondaryText,
+      fontSize: theme.typography.caption,
+      lineHeight: theme.typography.lineHeight.caption,
       textAlign: 'center',
     },
     completionActions: {

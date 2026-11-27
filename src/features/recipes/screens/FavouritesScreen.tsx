@@ -5,7 +5,6 @@ import {
   Pressable,
   StyleSheet,
   Text,
-  TextInput,
   View,
   useWindowDimensions,
 } from 'react-native';
@@ -19,8 +18,11 @@ import { ErrorState } from '../../../shared/components/ErrorState';
 import { LoadingState } from '../../../shared/components/LoadingState';
 import { OfflineBanner } from '../../../shared/components/OfflineBanner';
 import { RecipeCard } from '../../../shared/components/RecipeCard';
+import { SearchField } from '../../../shared/components/SearchField';
+import { ToastMessage } from '../../../shared/components/ToastMessage';
 import { useAppDispatch, useAppSelector } from '../../../store/hooks';
 import { useCraveThemeStyles } from '../../../shared/theme/useCraveTheme';
+import { userMessages } from '../../../shared/constants/userMessages';
 import type { Meal } from '../services/mealApi';
 import {
   normalizeUniqueStrings,
@@ -45,6 +47,7 @@ export function FavouritesScreen({ navigation }: Props) {
   const { theme, styles } = useCraveThemeStyles(createStyles);
   const dispatch = useAppDispatch();
   const { width } = useWindowDimensions();
+  const contentMaxWidth = Math.min(width, 1120);
   const user = useAppSelector((state) => state.auth.user);
   const isOffline = useAppSelector((state) => state.network.isOffline);
   const favouritesState = useAppSelector((state) => state.favourites);
@@ -72,6 +75,7 @@ export function FavouritesScreen({ navigation }: Props) {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [sortOrder, setSortOrder] = useState<SortOrder>('recent');
   const [undoMeal, setUndoMeal] = useState<Meal | null>(null);
+  const [favouriteError, setFavouriteError] = useState<string | null>(null);
   const undoTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const numberOfColumns = width >= 720 ? 3 : width < 400 ? 1 : 2;
   const categories = useMemo(
@@ -134,7 +138,7 @@ export function FavouritesScreen({ navigation }: Props) {
         undoTimeout.current = null;
       }, 5000);
     } catch {
-      // The shared favourites error state displays the persistence failure.
+      setFavouriteError(userMessages.unableToSaveFavourites);
     }
   };
 
@@ -151,7 +155,7 @@ export function FavouritesScreen({ navigation }: Props) {
     try {
       await dispatch(toggleUserFavourite({ userId, meal })).unwrap();
     } catch {
-      // The shared favourites error state displays the persistence failure.
+      setFavouriteError(userMessages.unableToSaveFavourites);
     }
   };
 
@@ -160,47 +164,37 @@ export function FavouritesScreen({ navigation }: Props) {
   const renderHeader = () => (
     <View>
       {isOffline ? <OfflineBanner /> : null}
-      <Text style={styles.title}>Favourites</Text>
-      <Text style={styles.count}>
-        {favourites.length} saved{' '}
-        {favourites.length === 1 ? 'recipe' : 'recipes'}
-        {hasFilters ? ` | ${filteredFavourites.length} matching` : ''}
-      </Text>
-
-      <View style={styles.searchInput}>
-        <Feather
-          name="search"
-          size={18}
-          color={theme.colors.secondaryText}
-          accessible={false}
-        />
-        <TextInput
-          accessibilityLabel="Search saved recipes"
-          placeholder="Search saved recipes"
-          placeholderTextColor={theme.colors.secondaryText}
-          value={searchText}
-          onChangeText={setSearchText}
-          autoCapitalize="none"
-          autoCorrect={false}
-          returnKeyType="search"
-          style={styles.searchTextInput}
-        />
-        {searchText.length > 0 ? (
-          <Pressable
-            onPress={() => setSearchText('')}
-            accessibilityRole="button"
-            accessibilityLabel="Clear favourites search"
-            style={styles.clearButton}
-          >
-            <Feather
-              name="x-circle"
-              size={20}
-              color={theme.colors.secondaryText}
-              accessible={false}
-            />
-          </Pressable>
-        ) : null}
+      <View style={styles.pageHeader}>
+        <View style={styles.headingCopy}>
+          <Text style={styles.eyebrow}>YOUR SAVED COLLECTION</Text>
+          <Text style={styles.title}>Your favourites</Text>
+          <Text style={styles.subtitle}>
+            Recipes you love, ready whenever you are.
+          </Text>
+        </View>
+        <View style={styles.countBadge}>
+          <Feather
+            name="heart"
+            size={17}
+            color={theme.colors.deepOrange}
+            accessible={false}
+          />
+          <Text style={styles.count}>{favourites.length}</Text>
+        </View>
       </View>
+      <SearchField
+        accessibilityLabel="Search saved recipes"
+        placeholder="Search your saved recipes"
+        value={searchText}
+        onChangeText={setSearchText}
+        onClear={() => setSearchText('')}
+      />
+      {hasFilters ? (
+        <Text style={styles.matchCount}>
+          {filteredFavourites.length} matching{' '}
+          {filteredFavourites.length === 1 ? 'recipe' : 'recipes'}
+        </Text>
+      ) : null}
 
       {categories.length > 0 ? (
         <View style={styles.filterSection}>
@@ -268,8 +262,8 @@ export function FavouritesScreen({ navigation }: Props) {
     if (!loaded || loading) {
       return error ? (
         <ErrorState
-          title="Favourites could not load"
-          message={error}
+          title="Unable to load favourites"
+          message="Please try again."
           retryLabel="Try again"
           onRetry={() => {
             if (userId !== null) {
@@ -285,7 +279,7 @@ export function FavouritesScreen({ navigation }: Props) {
     return hasFilters ? (
       <EmptyState
         title="No matching recipes"
-        message="Try a different search or category."
+        message="Try a different search or explore another cuisine."
         icon="search"
         actionLabel="Clear filters"
         onAction={() => {
@@ -296,8 +290,10 @@ export function FavouritesScreen({ navigation }: Props) {
     ) : (
       <EmptyState
         title="No favourites yet"
-        message="Save a recipe with the heart button and it will be available here, even offline."
+        message="Save recipes you love and find them here anytime."
         icon="heart"
+        actionLabel="Explore recipes"
+        onAction={() => navigation.navigate('Home')}
       />
     );
   };
@@ -313,17 +309,12 @@ export function FavouritesScreen({ navigation }: Props) {
         columnWrapperStyle={
           numberOfColumns > 1 ? styles.recipeRow : undefined
         }
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[
+          styles.content,
+          { maxWidth: contentMaxWidth },
+        ]}
         ListHeaderComponent={renderHeader}
         ListEmptyComponent={renderEmpty}
-        ListFooterComponent={
-          error && loaded ? (
-            <ErrorState
-              title="Favourites could not be updated"
-              message={error}
-            />
-          ) : undefined
-        }
         renderItem={({ item }) => (
           <RecipeCard
             title={item.strMeal}
@@ -351,7 +342,7 @@ export function FavouritesScreen({ navigation }: Props) {
       />
       {undoMeal ? (
         <View style={styles.undoBar} accessibilityLiveRegion="polite">
-          <Text style={styles.undoText}>Removed {undoMeal.strMeal}</Text>
+          <Text style={styles.undoText}>Removed from favourites.</Text>
           <Pressable
             onPress={() => {
               void undoRemoval();
@@ -361,10 +352,23 @@ export function FavouritesScreen({ navigation }: Props) {
             accessibilityLabel={`Undo removing ${undoMeal.strMeal}`}
             style={styles.undoButton}
           >
-            <Text style={styles.undoButtonText}>UNDO</Text>
+            <Text style={styles.undoButtonText}>Undo</Text>
           </Pressable>
         </View>
       ) : null}
+      <View
+        style={[
+          styles.toastContainer,
+          undoMeal !== null && styles.toastAboveUndo,
+        ]}
+        pointerEvents="box-none"
+      >
+        <ToastMessage
+          message={favouriteError}
+          tone="error"
+          onDismiss={() => setFavouriteError(null)}
+        />
+      </View>
     </SafeAreaView>
   );
 }
@@ -377,43 +381,59 @@ function createStyles(theme: import('../../../shared/theme/theme').CraveTheme) {
     },
     content: {
       flexGrow: 1,
-      padding: theme.spacing.lg,
+      width: '100%',
+      alignSelf: 'center',
+      paddingHorizontal: theme.spacing.lg,
+      paddingTop: theme.spacing.lg,
       paddingBottom: theme.spacing.xl,
     },
-    title: {
-      marginTop: theme.spacing.md,
-      color: theme.colors.heading,
-      fontSize: theme.typography.title,
-      fontWeight: theme.typography.weight.bold,
-    },
-    count: {
-      marginTop: theme.spacing.xs,
-      color: theme.colors.secondaryText,
-      fontSize: theme.typography.body,
-    },
-    searchInput: {
-      minHeight: 52,
+    pageHeader: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: theme.spacing.sm,
-      marginTop: theme.spacing.md,
-      paddingLeft: theme.spacing.md,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      borderRadius: theme.radius.md,
-      backgroundColor: theme.colors.card,
+      justifyContent: 'space-between',
+      gap: theme.spacing.md,
+      marginBottom: theme.spacing.md,
     },
-    searchTextInput: {
-      minHeight: 48,
+    headingCopy: {
       flex: 1,
-      color: theme.colors.text,
-      fontSize: theme.typography.body,
+      gap: theme.spacing.xs,
     },
-    clearButton: {
-      width: 48,
-      height: 48,
+    eyebrow: {
+      color: theme.colors.deepOrange,
+      fontSize: theme.typography.overline,
+      fontWeight: theme.typography.weight.bold,
+      letterSpacing: 0.8,
+    },
+    title: {
+      color: theme.colors.heading,
+      fontSize: theme.typography.display,
+      fontWeight: theme.typography.weight.bold,
+      lineHeight: theme.typography.lineHeight.display,
+    },
+    subtitle: {
+      color: theme.colors.secondaryText,
+      fontSize: theme.typography.body,
+      lineHeight: theme.typography.lineHeight.body,
+    },
+    count: {
+      color: theme.colors.heading,
+      fontSize: theme.typography.subtitle,
+      fontWeight: theme.typography.weight.bold,
+    },
+    countBadge: {
+      minWidth: 56,
+      minHeight: 48,
+      flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
+      gap: theme.spacing.xs,
+      paddingHorizontal: theme.spacing.sm,
+      borderRadius: theme.radius.lg,
+      backgroundColor: theme.colors.elevatedSurface,
+    },
+    matchCount: {
+      color: theme.colors.secondaryText,
+      fontSize: theme.typography.caption,
     },
     filterSection: {
       gap: theme.spacing.sm,
@@ -486,6 +506,15 @@ function createStyles(theme: import('../../../shared/theme/theme').CraveTheme) {
       color: theme.colors.deepOrange,
       fontSize: theme.typography.label,
       fontWeight: theme.typography.weight.bold,
+    },
+    toastContainer: {
+      position: 'absolute',
+      right: 0,
+      bottom: 0,
+      left: 0,
+    },
+    toastAboveUndo: {
+      bottom: 72,
     },
   });
 }

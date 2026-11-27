@@ -1,6 +1,7 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
 
 import type { Meal } from '../services/mealApi';
+import { userMessages } from '../../../shared/constants/userMessages';
 import {
   readUserFavouriteEntries,
   saveUserFavouriteEntries,
@@ -30,12 +31,13 @@ interface FavouritesThunkConfig {
   rejectValue: string;
 }
 
-function getStorageErrorMessage(error: unknown): string {
-  if (error instanceof Error && error.message) {
-    return error.message;
-  }
-
-  return 'Favourites could not be saved. Please try again.';
+function getStorageErrorMessage(
+  _error: unknown,
+  operation: 'load' | 'save',
+): string {
+  return operation === 'load'
+    ? userMessages.unableToLoadFavourites
+    : userMessages.unableToSaveFavourites;
 }
 
 export const loadUserFavourites = createAsyncThunk<
@@ -48,7 +50,7 @@ export const loadUserFavourites = createAsyncThunk<
     try {
       return { userId, entries: await readUserFavouriteEntries(userId) };
     } catch (error) {
-      return rejectWithValue(getStorageErrorMessage(error));
+      return rejectWithValue(getStorageErrorMessage(error, 'load'));
     }
   },
   {
@@ -94,7 +96,7 @@ export const toggleUserFavourite = createAsyncThunk<
       );
       return { userId, meals: nextFavourites, addedAtByMealId: nextAddedAt };
     } catch (error) {
-      return rejectWithValue(getStorageErrorMessage(error));
+      return rejectWithValue(getStorageErrorMessage(error, 'save'));
     }
   },
   {
@@ -129,8 +131,7 @@ const favouritesSlice = createSlice({
           state.loadingByUser[action.meta.arg] = false;
           state.errorByUser[action.meta.arg] =
             action.payload ??
-            action.error.message ??
-            'Favourites could not load.';
+            userMessages.unableToLoadFavourites;
         }
       })
       .addCase(toggleUserFavourite.pending, (state, action) => {
@@ -149,7 +150,7 @@ const favouritesSlice = createSlice({
         state.savingByUser[userId] = false;
         if (!action.meta.condition) {
           state.errorByUser[userId] =
-            action.payload ?? action.error.message ?? 'Favourites could not save.';
+            action.payload ?? userMessages.unableToSaveFavourites;
         }
       });
   },
