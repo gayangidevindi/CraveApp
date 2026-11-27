@@ -7,11 +7,12 @@ import {
   registrationSucceeded,
   signOutSucceeded,
 } from '../../../../store/authSlice';
-import type { AppDispatch } from '../../../../store/store';
+import type { AppDispatch, RootState } from '../../../../store/store';
 import type { AuthSession, AuthUser } from '../../types/authTypes';
 import {
   getAuthErrorMessage,
   loginWithDummyJson,
+  registerWithDummyJson,
 } from '../../services/authApi';
 import {
   loginWithLocalCredentials,
@@ -33,6 +34,7 @@ jest.mock('../../services/authApi', () => ({
     error instanceof Error ? error.message : 'Authentication failed.',
   ),
   loginWithDummyJson: jest.fn(),
+  registerWithDummyJson: jest.fn(),
   restoreSavedSession: jest.fn(),
 }));
 
@@ -75,6 +77,7 @@ function createDispatch() {
 
 describe('auth actions', () => {
   const dummyLogin = jest.mocked(loginWithDummyJson);
+  const simulatedRegistration = jest.mocked(registerWithDummyJson);
   const localLogin = jest.mocked(loginWithLocalCredentials);
   const registerLocal = jest.mocked(registerLocalUser);
   const mapAuthError = jest.mocked(getAuthErrorMessage);
@@ -90,6 +93,21 @@ describe('auth actions', () => {
     saveTokens.mockResolvedValue(undefined);
     saveLocalUserId.mockResolvedValue(undefined);
     clearTokens.mockResolvedValue(undefined);
+    simulatedRegistration.mockResolvedValue(undefined);
+  });
+
+  it('does not start a second login request while authentication is in progress', async () => {
+    const { actions, dispatch } = createDispatch();
+    const getState = () =>
+      ({
+        auth: { status: 'authenticating' },
+      }) as unknown as RootState;
+
+    await submitLogin(credentials)(dispatch, getState);
+
+    expect(dummyLogin).not.toHaveBeenCalled();
+    expect(localLogin).not.toHaveBeenCalled();
+    expect(actions).toHaveLength(0);
   });
 
   it('keeps DummyJSON demo-account login working', async () => {
@@ -144,6 +162,7 @@ describe('auth actions', () => {
     await submitRegistration(registration)(dispatch);
 
     expect(registerLocal).toHaveBeenCalledWith(registration);
+    expect(simulatedRegistration).toHaveBeenCalledWith(registration);
     expect(actions).toContainEqual(
       registrationSucceeded(
         'Account created on this device. Log in with your username and password. This local demo account is separate from DummyJSON.',

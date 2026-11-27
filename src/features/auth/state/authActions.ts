@@ -19,6 +19,7 @@ import {
 import {
   getAuthErrorMessage,
   loginWithDummyJson,
+  registerWithDummyJson,
   restoreSavedSession,
 } from '../services/authApi';
 import {
@@ -96,7 +97,14 @@ export const restoreAuthSession =
 
 export const submitLogin =
   (credentials: LoginFormData) =>
-  async (dispatch: AppDispatch): Promise<void> => {
+  async (
+    dispatch: AppDispatch,
+    getState?: () => RootState,
+  ): Promise<void> => {
+    if (getState?.().auth.status === 'authenticating') {
+      return;
+    }
+
     dispatch(authenticationStarted());
 
     let session: AuthSession | null = null;
@@ -137,11 +145,21 @@ export const submitLogin =
 
 export const submitRegistration =
   (registration: RegistrationRequest) =>
-  async (dispatch: AppDispatch): Promise<void> => {
+  async (
+    dispatch: AppDispatch,
+    getState?: () => RootState,
+  ): Promise<void> => {
+    if (getState?.().auth.registrationStatus === 'loading') {
+      return;
+    }
+
     dispatch(registrationStarted());
 
     try {
       await registerLocalUser(registration);
+      // DummyJSON's users/add endpoint is a simulated registration service.
+      // The local account remains usable if this optional request fails.
+      await registerWithDummyJson(registration).catch(() => undefined);
       dispatch(registrationSucceeded(REGISTRATION_NOTICE));
     } catch (error) {
       dispatch(registrationFailed(getAuthErrorMessage(error)));

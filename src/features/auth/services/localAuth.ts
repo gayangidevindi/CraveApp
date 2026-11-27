@@ -38,9 +38,25 @@ const localAccountsSchema = z.array(localAccountSchema);
 const localRegistrationSchema = z.object({
   firstName: z.string().trim().min(1, 'Enter your full name.'),
   lastName: z.string().trim(),
-  username: z.string().trim().min(3, 'Username must be at least 3 characters.'),
-  email: z.string().trim().email('Enter a valid email address.'),
-  password: z.string().min(8, 'Password must be at least 8 characters.'),
+  username: z
+    .string()
+    .trim()
+    .min(3, 'Username must be at least 3 characters.')
+    .max(30, 'Username must be 30 characters or fewer.')
+    .regex(
+      /^[A-Za-z0-9_.-]+$/,
+      'Username can contain letters, numbers, dots, underscores and hyphens.',
+    ),
+  email: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .email('Enter a valid email address.')
+    .max(254, 'Email must be 254 characters or fewer.'),
+  password: z
+    .string()
+    .min(8, 'Password must be at least 8 characters.')
+    .max(128, 'Password must be 128 characters or fewer.'),
 });
 
 export class LocalAuthError extends Error {

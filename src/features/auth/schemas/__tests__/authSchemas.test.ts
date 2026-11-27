@@ -50,4 +50,13 @@ describe('registrationSchema', () => {
       ]);
     }
   });
+
+  it('rejects unsupported username characters and oversized input', () => {
+    const result = registrationSchema.safeParse({
+      ...validRegistration,
+      username: 'invalid username',
+    });
+
+    expect(result.success).toBe(false);
+  });
 });
