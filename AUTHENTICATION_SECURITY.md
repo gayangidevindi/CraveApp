@@ -2,7 +2,7 @@
 
 ## Authentication flows
 
-- DummyJSON login uses `POST /auth/login` and is used for demo accounts.
+- DummyJSON login uses `POST /auth/login` for the sample credentials.
 - Registration is stored locally and also sent to DummyJSON's simulated
   `POST /users/add` endpoint with a five-second timeout. The local account
   remains usable if the simulated request fails or times out.
@@ -21,13 +21,13 @@
 
 ## Web applications
 
-- Expo SecureStore is not available in a browser. Demo tokens are stored in
+- Expo SecureStore is not available in a browser. Sample login tokens are stored in
   `sessionStorage`, and the local account session ID is stored in
   `localStorage`.
 - Browser storage does not provide the OS-level protection of a native
   Keychain or Keystore. Both storage mechanisms are accessible to JavaScript
   and should be considered vulnerable to XSS on the origin.
-- Web authentication is suitable only for the demo application. Production
+- Web authentication is suitable for evaluation, not production. Production
   deployments should use secure, HTTP-only, same-site cookies or a dedicated
   server-side session system.
 - Session storage ends when the browser tab session ends. Local-account session

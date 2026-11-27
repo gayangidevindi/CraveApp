@@ -6,7 +6,7 @@ ingredients, and keep key recipe data available offline.
 
 ## Features
 
-- DummyJSON demo login, local account registration, session restoration, and
+- DummyJSON sample login, local account registration, session restoration, and
   logout.
 - Device-local account credentials stored as salted PBKDF2-SHA256 hashes.
 - SecureStore-backed native auth tokens; browser auth uses less secure browser
@@ -20,15 +20,15 @@ ingredients, and keep key recipe data available offline.
   persistent storage.
 - Per-user profile, cooking preferences, profile picture, and persistent
   Light/Dark Mode.
-- Offline recipe cache, offline favourites, reconnection refresh, and last-sync
-  display.
+- Offline recipe cache, offline favourites, and automatic refresh on
+  reconnection.
 
 ## Technologies
 
 - Expo SDK 58, React Native 0.88, TypeScript
 - React Navigation 7
 - Redux Toolkit and RTK Query
-- TheMealDB API and DummyJSON demo API
+- TheMealDB API and DummyJSON sample authentication API
 - AsyncStorage for non-sensitive local data
 - Expo SecureStore for native authentication tokens
 - Expo ImagePicker, ImageManipulator, Clipboard, and Jest
@@ -64,17 +64,29 @@ npx expo start
 
 Run `npx expo start --web` and open the local URL printed by the CLI.
 
-## Demo login
+## Sample DummyJSON login
 
-The login screen lists the DummyJSON demo credentials:
+Enter these valid DummyJSON credentials manually on the login screen:
 
 - Username: `emilys`
 - Password: `emilyspass`
 
-Registration creates a local account on this device and also sends DummyJSON's
-simulated `POST /users/add` request. The simulated request has a five-second
-timeout and does not determine whether the local account is saved or can log
-in.
+Registration creates a usable account on this device and also sends a
+simulated `POST /users/add` request. That request has a five-second timeout and
+does not determine whether the local account is saved or can be used to sign
+in. Locally registered accounts do not sync to other devices.
+
+## Authentication photo sources
+
+The login and registration headers use locally bundled, cropped JPEGs. They do
+not load images from the network at runtime.
+
+- [assets/auth/login-food.jpg](assets/auth/login-food.jpg): [Unsplash photo 1512621776951-a57141f2eefd](https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=1440&h=560&q=84&fm=jpg)
+- [assets/auth/register-food.jpg](assets/auth/register-food.jpg): [Unsplash photo 1473093295043-cdd812d0e601](https://images.unsplash.com/photo-1473093295043-cdd812d0e601?auto=format&fit=crop&w=1440&h=560&q=84&fm=jpg)
+- License: [Unsplash License](https://unsplash.com/license)
+
+The photos are used under the Unsplash License. Their source IDs and license
+are recorded here; no runtime network access or attribution overlay is needed.
 
 ## Project structure
 
@@ -112,8 +124,9 @@ invalidation after reconnection.
 
 The app calls TheMealDB's public v1 API for searching, random/featured recipes,
 categories, cuisine areas, filtering, and recipe details by ID. Responses are
-schema-validated before display or caching. DummyJSON is used for demo login
-and simulated registration, not as a production identity provider.
+schema-validated before display or caching. DummyJSON provides the sample
+login and simulated registration endpoint; it is not a production identity
+provider.
 
 ### Authentication and storage
 
@@ -123,7 +136,7 @@ Profile data, favourites, recipe history, checklists, and recipe responses are
 non-sensitive app data stored in AsyncStorage and scoped by user where
 applicable.
 
-On Web, SecureStore is unavailable. The demo uses `sessionStorage` for remote
+On Web, SecureStore is unavailable. The app uses `sessionStorage` for remote
 auth tokens and `localStorage` for local-account session IDs. Browser storage
 is readable by JavaScript and vulnerable to same-origin XSS; it is not
 equivalent to a Keychain or Keystore. Do not treat the browser flow as
@@ -136,8 +149,8 @@ when the app detects an offline connection or a network fetch fails. The cache
 is bounded to the 60 most recently used query entries. Cache refreshes do not
 replace existing data with empty API responses. Favourites remain available
 offline and are migrated from the older array storage shape without dropping
-recipes. The last successful cache synchronization time is persisted and shown
-on Home.
+recipes. The last successful cache synchronization time is retained as
+internal metadata and is not shown in the Home screen.
 
 Previously viewed remote images may be served from platform networking/image
 caches, but image bytes are not explicitly downloaded and managed by CraveApp.

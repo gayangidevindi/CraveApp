@@ -10,13 +10,13 @@
 - [ ] Confirm profile editing, photo selection/removal, permission feedback, and
   unsaved-changes warning.
 - [ ] Confirm offline cached data, favourites, reconnection behavior, and
-  synchronization time.
+  automatic refresh.
 - [ ] Confirm Light/Dark Mode and user data separation.
 
 ## Manual Android verification
 
 - [ ] Complete the checklist in an Android emulator/device with network.
-- [ ] Sign in using the demo login and confirm the Home screen user greeting.
+- [ ] Sign in using the sample credentials and confirm the Home screen greeting.
 - [ ] Register a local account; confirm invalid and duplicate data are rejected.
 - [ ] Force-close/reopen the app and confirm session restoration.
 - [ ] Add/remove a favourite and verify it persists after restart.
@@ -56,8 +56,9 @@
 
 ### Part 1 — App demonstration (about 1 minute)
 
-**0:00–0:10:** Open CraveApp and log in using the demo account. Point out the
-personalized time-of-day greeting and recipe discovery screen.
+**0:00–0:10:** Open CraveApp and manually enter the sample DummyJSON
+credentials from the README. Point out the personalized time-of-day greeting
+and recipe discovery screen.
 
 **0:10–0:25:** Search or filter recipes, open a result, and show its ingredients
 and cooking instructions. Check an ingredient and briefly open Cooking Mode.
@@ -77,15 +78,15 @@ typed React Navigation, and Redux Toolkit state.
 **1:20–1:40:** Show TheMealDB API integration and schema validation. Explain
 that recipe details are loaded using typed recipe IDs.
 
-**1:40–2:00:** Explain DummyJSON demo login, local registration, PBKDF2 password
+**1:40–2:00:** Explain sample login, local registration, PBKDF2 password
 hashing, native SecureStore tokens, and browser storage limitations.
 
 **2:00–2:20:** Show persistent per-user favourites, recent history, and
 ingredient checklists. Explain the backward-compatible favourites migration.
 
 **2:20–2:40:** Explain the bounded recipe response cache, offline fallback,
-network reconnection invalidation, and last-sync timestamp. Note the best-effort
-image cache and Expo Go cold-start limitation.
+network reconnection invalidation, and retained sync metadata. Note the
+best-effort image cache and Expo Go cold-start limitation.
 
 **2:40–3:00:** Demonstrate persistent Dark Mode and summarize automated test,
 lint, typecheck, compatibility, and bundle-export results. State which Android
