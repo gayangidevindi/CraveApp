@@ -8,6 +8,7 @@ import type {
 } from '../types/authTypes';
 
 const API_BASE_URL = 'https://dummyjson.com';
+const REGISTRATION_REQUEST_TIMEOUT_MS = 5_000;
 
 const authUserSchema = z.object({
   id: z.number(),
@@ -47,6 +48,7 @@ interface ApiRequestOptions {
   method?: 'GET' | 'POST';
   body?: unknown;
   accessToken?: string;
+  signal?: AbortSignal;
 }
 
 async function requestJson<TSchema extends z.ZodType>(
@@ -65,6 +67,7 @@ async function requestJson<TSchema extends z.ZodType>(
   const response = await fetch(`${API_BASE_URL}${path}`, {
     method: options.method ?? 'GET',
     headers,
+    ...(options.signal === undefined ? {} : { signal: options.signal }),
     ...(options.body === undefined
       ? {}
       : { body: JSON.stringify(options.body) }),
@@ -143,10 +146,27 @@ export async function loginWithDummyJson(
 export async function registerWithDummyJson(
   registration: RegistrationRequest,
 ): Promise<void> {
-  await requestJson('/users/add', registrationResponseSchema, {
-    method: 'POST',
-    body: registration,
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(
+    () => controller.abort(),
+    REGISTRATION_REQUEST_TIMEOUT_MS,
+  );
+
+  try {
+    await requestJson('/users/add', registrationResponseSchema, {
+      method: 'POST',
+      body: registration,
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (controller.signal.aborted) {
+      throw new AuthApiError('DummyJSON registration request timed out.');
+    }
+
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 async function getCurrentUser(accessToken: string): Promise<AuthUser> {

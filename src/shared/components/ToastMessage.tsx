@@ -1,5 +1,5 @@
 import { Feather } from '@expo/vector-icons';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useCraveThemeStyles } from '../theme/useCraveTheme';
 
@@ -15,6 +15,7 @@ export function ToastMessage({
   onDismiss,
 }: ToastMessageProps) {
   const { theme, styles } = useCraveThemeStyles(createStyles);
+  const isError = tone === 'error';
 
   if (!message) {
     return null;
@@ -24,15 +25,25 @@ export function ToastMessage({
     <View
       style={[
         styles.toast,
-        tone === 'error' && styles.errorToast,
+        isError && styles.errorToast,
       ]}
-      accessibilityRole={tone === 'error' ? 'alert' : 'status'}
-      accessibilityLiveRegion="polite"
+      accessibilityRole={
+        Platform.OS === 'web' ? undefined : isError ? 'alert' : 'text'
+      }
+      accessibilityLiveRegion={
+        Platform.OS === 'android' ? (isError ? 'assertive' : 'polite') : undefined
+      }
+      role={
+        Platform.OS === 'web' ? (isError ? 'alert' : 'status') : undefined
+      }
+      aria-live={
+        Platform.OS === 'web' ? (isError ? 'assertive' : 'polite') : undefined
+      }
     >
       <Feather
-        name={tone === 'error' ? 'alert-circle' : 'check-circle'}
+        name={isError ? 'alert-circle' : 'check-circle'}
         size={19}
-        color={tone === 'error' ? theme.colors.onPrimary : theme.colors.darkBrown}
+        color={isError ? theme.colors.onPrimary : theme.colors.darkBrown}
         accessible={false}
       />
       <Text style={styles.message}>{message}</Text>
@@ -45,7 +56,7 @@ export function ToastMessage({
         <Feather
           name="x"
           size={18}
-          color={tone === 'error' ? theme.colors.onPrimary : theme.colors.darkBrown}
+          color={isError ? theme.colors.onPrimary : theme.colors.darkBrown}
           accessible={false}
         />
       </Pressable>

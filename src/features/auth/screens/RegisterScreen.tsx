@@ -50,6 +50,12 @@ export function RegisterScreen({ navigation }: Props) {
     [dispatch],
   );
 
+  useEffect(() => {
+    if (registrationStatus === 'succeeded') {
+      navigation.navigate('Login');
+    }
+  }, [navigation, registrationStatus]);
+
   const onSubmit = async (values: RegistrationFormData) => {
     const [firstName, ...lastNameParts] = values.fullName.trim().split(/\s+/);
     const registration: RegistrationRequest = {
@@ -259,7 +265,7 @@ export function RegisterScreen({ navigation }: Props) {
               <Text style={styles.linkPrompt}>Already have an account?</Text>
               <Pressable
                 onPress={() => navigation.navigate('Login')}
-                accessibilityRole="link"
+                accessibilityRole="button"
                 accessibilityLabel="Log in to CraveApp"
                 style={styles.linkButton}
               >

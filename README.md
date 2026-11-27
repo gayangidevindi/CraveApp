@@ -71,9 +71,10 @@ The login screen lists the DummyJSON demo credentials:
 - Username: `emilys`
 - Password: `emilyspass`
 
-Registration creates a local account and attempts DummyJSON's simulated
-`POST /users/add` endpoint. A locally registered account is stored on the
-device and can log in independently of DummyJSON.
+Registration creates a local account on this device and also sends DummyJSON's
+simulated `POST /users/add` request. The simulated request has a five-second
+timeout and does not determine whether the local account is saved or can log
+in.
 
 ## Project structure
 
@@ -206,7 +207,8 @@ included in this repository yet.
 ## Known limitations
 
 - DummyJSON's `/users/add` endpoint simulates registration; it does not create
-  an account usable for DummyJSON login.
+  an account usable for DummyJSON login. Locally registered accounts are
+  device-specific and do not sync to other devices.
 - Browser token storage is not protected by a browser-managed HTTP-only
   session.
 - Image availability offline is best-effort rather than a guaranteed download.

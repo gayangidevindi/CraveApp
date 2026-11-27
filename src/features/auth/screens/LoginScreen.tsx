@@ -148,15 +148,15 @@ export function LoginScreen({ navigation }: Props) {
             />
 
             <Text style={styles.demoHint}>
-              Demo: emilys / emilyspass. DummyJSON registrations are simulated
-              and cannot be used to log in.
+              Demo: emilys / emilyspass. Locally registered accounts are saved
+              on this device only.
             </Text>
 
             <View style={styles.registrationLink}>
               <Text style={styles.linkPrompt}>New to CraveApp?</Text>
               <Pressable
                 onPress={() => navigation.navigate('Register')}
-                accessibilityRole="link"
+                accessibilityRole="button"
                 accessibilityLabel="Register for CraveApp"
                 style={styles.linkButton}
               >

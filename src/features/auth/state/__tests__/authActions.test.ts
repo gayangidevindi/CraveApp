@@ -96,6 +96,10 @@ describe('auth actions', () => {
     simulatedRegistration.mockResolvedValue(undefined);
   });
 
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   it('does not start a second login request while authentication is in progress', async () => {
     const { actions, dispatch } = createDispatch();
     const getState = () =>
@@ -148,8 +152,9 @@ describe('auth actions', () => {
     expect(actions).toContainEqual(authenticationFailed(error.message));
   });
 
-  it('registers new accounts locally and returns clear success feedback', async () => {
+  it('keeps local registration successful when DummyJSON is unavailable', async () => {
     registerLocal.mockResolvedValue(user);
+    simulatedRegistration.mockRejectedValue(new TypeError('Network request failed.'));
     const { actions, dispatch } = createDispatch();
     const registration = {
       firstName: 'Alex',

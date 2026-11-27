@@ -157,13 +157,18 @@ export const submitRegistration =
 
     try {
       await registerLocalUser(registration);
-      // DummyJSON's users/add endpoint is a simulated registration service.
-      // The local account remains usable if this optional request fails.
-      await registerWithDummyJson(registration).catch(() => undefined);
-      dispatch(registrationSucceeded(REGISTRATION_NOTICE));
     } catch (error) {
       dispatch(registrationFailed(getAuthErrorMessage(error)));
+      return;
     }
+
+    try {
+      await registerWithDummyJson(registration);
+    } catch {
+      // The local account remains usable when the simulated endpoint is unavailable.
+    }
+
+    dispatch(registrationSucceeded(REGISTRATION_NOTICE));
   };
 
 export const signOut =

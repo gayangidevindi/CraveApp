@@ -29,6 +29,7 @@ describe('authApi', () => {
   });
 
   afterEach(() => {
+    jest.useRealTimers();
     jest.restoreAllMocks();
   });
 
@@ -81,6 +82,29 @@ describe('authApi', () => {
     fetchMock.mockResolvedValue(
       jsonResponse({ id: 209, username: 'taylorc' }, 201),
     );
+    const registration = {
+      firstName: 'Taylor',
+      lastName: 'Crave',
+      username: 'taylorc',
+      email: 'taylor@example.com',
+      password: 'securepass123',
+    };
+
+    await expect(registerWithDummyJson(registration)).resolves.toBeUndefined();
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://dummyjson.com/users/add',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify(registration),
+        signal: expect.any(AbortSignal),
+      }),
+    );
+  });
+
+  it('reports registration network failures', async () => {
+    const networkError = new TypeError('Network request failed.');
+    fetchMock.mockRejectedValue(networkError);
 
     await expect(
       registerWithDummyJson({
@@ -90,21 +114,37 @@ describe('authApi', () => {
         email: 'taylor@example.com',
         password: 'securepass123',
       }),
-    ).resolves.toBeUndefined();
+    ).rejects.toBe(networkError);
+  });
 
-    expect(fetchMock).toHaveBeenCalledWith(
-      'https://dummyjson.com/users/add',
-      expect.objectContaining({
-        method: 'POST',
-        body: JSON.stringify({
-          firstName: 'Taylor',
-          lastName: 'Crave',
-          username: 'taylorc',
-          email: 'taylor@example.com',
-          password: 'securepass123',
-        }),
-      }),
+  it('aborts a registration request that exceeds its timeout', async () => {
+    jest.useFakeTimers();
+    let requestSignal: AbortSignal | undefined;
+    fetchMock.mockImplementation((_url, options) => {
+      requestSignal = options?.signal ?? undefined;
+      return new Promise<Response>((_resolve, reject) => {
+        requestSignal?.addEventListener(
+          'abort',
+          () => reject(new Error('Request aborted.')),
+          { once: true },
+        );
+      });
+    });
+
+    const request = registerWithDummyJson({
+      firstName: 'Taylor',
+      lastName: 'Crave',
+      username: 'taylorc',
+      email: 'taylor@example.com',
+      password: 'securepass123',
+    });
+    const requestExpectation = expect(request).rejects.toThrow(
+      'DummyJSON registration request timed out.',
     );
+    await jest.advanceTimersByTimeAsync(5_000);
+
+    await requestExpectation;
+    expect(requestSignal?.aborted).toBe(true);
   });
 
   it('refreshes an expired access token before restoring the user', async () => {

@@ -1,5 +1,5 @@
 import { Feather } from '@expo/vector-icons';
-import { StyleSheet, Text, View } from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 
 import { useCraveThemeStyles } from '../theme/useCraveTheme';
 
@@ -15,8 +15,19 @@ export function OfflineBanner({
   return (
     <View
       style={styles.container}
-      accessibilityRole="alert"
+      accessibilityRole={
+        Platform.OS === 'web'
+          ? undefined
+          : Platform.OS === 'android'
+            ? 'text'
+            : 'alert'
+      }
       accessibilityLabel={message}
+      accessibilityLiveRegion={
+        Platform.OS === 'android' ? 'polite' : undefined
+      }
+      role={Platform.OS === 'web' ? 'status' : undefined}
+      aria-live={Platform.OS === 'web' ? 'polite' : undefined}
     >
       <Feather
         name="wifi-off"

@@ -1,6 +1,8 @@
 import {
   authenticationFailed,
   authenticationSucceeded,
+  registrationFailed,
+  registrationStarted,
   registrationSucceeded,
   sessionRestoreSucceeded,
   default as authReducer,
@@ -40,14 +42,26 @@ describe('authSlice', () => {
   });
 
   it('does not authenticate a simulated registration', () => {
+    const loadingState = authReducer(undefined, registrationStarted());
     const state = authReducer(
-      undefined,
+      loadingState,
       registrationSucceeded('Registration is simulated.'),
     );
 
     expect(state.registrationStatus).toBe('succeeded');
     expect(state.status).toBe('idle');
     expect(state.user).toBeNull();
+  });
+
+  it('clears registration loading state and exposes failures', () => {
+    const loadingState = authReducer(undefined, registrationStarted());
+    const state = authReducer(
+      loadingState,
+      registrationFailed('Unable to save the account.'),
+    );
+
+    expect(state.registrationStatus).toBe('failed');
+    expect(state.registrationError).toBe('Unable to save the account.');
   });
 
   it('stores the returned authenticated user', () => {

@@ -3,8 +3,9 @@
 ## Authentication flows
 
 - DummyJSON login uses `POST /auth/login` and is used for demo accounts.
-- Registration is stored locally and also optionally sent to DummyJSON's
-  simulated `POST /users/add` endpoint.
+- Registration is stored locally and also sent to DummyJSON's simulated
+  `POST /users/add` endpoint with a five-second timeout. The local account
+  remains usable if the simulated request fails or times out.
 - Local account passwords are salted and hashed with PBKDF2-SHA256. Plain-text
   passwords are not persisted.
 - Local usernames and email addresses are checked without regard to letter case
