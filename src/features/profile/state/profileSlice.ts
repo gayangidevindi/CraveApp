@@ -5,6 +5,7 @@ import {
   saveUserProfile,
 } from '../services/profileStorage';
 import type { UserProfile } from '../types/profileTypes';
+import { userMessages } from '../../../shared/constants/userMessages';
 
 export interface ProfileState {
   byUser: Record<string, UserProfile>;
@@ -27,10 +28,13 @@ interface ProfileThunkConfig {
   rejectValue: string;
 }
 
-function getProfileErrorMessage(error: unknown): string {
-  return error instanceof Error && error.message
-    ? error.message
-    : 'Profile data could not be saved. Please try again.';
+function getProfileErrorMessage(
+  _error: unknown,
+  operation: 'load' | 'save',
+): string {
+  return operation === 'load'
+    ? userMessages.unableToLoadProfile
+    : userMessages.unableToSaveChanges;
 }
 
 export const loadUserProfile = createAsyncThunk<
@@ -43,7 +47,7 @@ export const loadUserProfile = createAsyncThunk<
     try {
       return { userId, profile: await readUserProfile(userId) };
     } catch (error) {
-      return rejectWithValue(getProfileErrorMessage(error));
+      return rejectWithValue(getProfileErrorMessage(error, 'load'));
     }
   },
   {
@@ -64,7 +68,7 @@ export const updateUserProfile = createAsyncThunk<
       await saveUserProfile(userId, profile);
       return { userId, profile };
     } catch (error) {
-      return rejectWithValue(getProfileErrorMessage(error));
+      return rejectWithValue(getProfileErrorMessage(error, 'save'));
     }
   },
   {
@@ -98,8 +102,7 @@ const profileSlice = createSlice({
           state.loadingByUser[action.meta.arg] = false;
           state.errorByUser[action.meta.arg] =
             action.payload ??
-            action.error.message ??
-            'Profile data could not be loaded.';
+            userMessages.unableToLoadProfile;
         }
       })
       .addCase(updateUserProfile.pending, (state, action) => {
@@ -118,8 +121,7 @@ const profileSlice = createSlice({
         if (!action.meta.condition) {
           state.errorByUser[userId] =
             action.payload ??
-            action.error.message ??
-            'Profile data could not be saved.';
+            userMessages.unableToSaveChanges;
         }
       });
   },

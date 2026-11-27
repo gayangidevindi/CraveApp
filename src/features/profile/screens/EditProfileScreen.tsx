@@ -1,11 +1,10 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { usePreventRemove } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Controller, useForm, useWatch } from 'react-hook-form';
 import {
   KeyboardAvoidingView,
-  Alert,
   Platform,
   Pressable,
   ScrollView,
@@ -19,12 +18,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import type { MainStackParamList } from '../../../navigation/types';
 import { useAppDispatch, useAppSelector } from '../../../store/hooks';
 import { CustomButton } from '../../../shared/components/CustomButton';
+import { ConfirmationDialog } from '../../../shared/components/ConfirmationDialog';
 import { CustomInput } from '../../../shared/components/CustomInput';
 import { ErrorState } from '../../../shared/components/ErrorState';
 import { LoadingState } from '../../../shared/components/LoadingState';
 import { OfflineBanner } from '../../../shared/components/OfflineBanner';
 import { useCraveThemeStyles } from '../../../shared/theme/useCraveTheme';
+import { userMessages } from '../../../shared/constants/userMessages';
 import { AuthNotice } from '../../auth/components/AuthNotice';
+import { ProfilePhotoEditor } from '../components/ProfilePhotoEditor';
 import {
   loadUserProfile,
   updateUserProfile,
@@ -42,16 +44,8 @@ import {
 
 type Props = NativeStackScreenProps<MainStackParamList, 'EditProfile'>;
 
-function getErrorMessage(error: unknown): string {
-  if (typeof error === 'string') {
-    return error;
-  }
-
-  if (error instanceof Error && error.message) {
-    return error.message;
-  }
-
-  return 'Your profile could not be saved. Please try again.';
+function getErrorMessage(_error: unknown): string {
+  return userMessages.unableToSaveChanges;
 }
 
 function toggleChoice<T extends string>(
@@ -134,15 +128,36 @@ export function EditProfileScreen({ navigation }: Props) {
     [user?.firstName, user?.lastName].filter(Boolean).join(' ') ||
     user?.username ||
     '';
-  const defaultProfile = useMemo(
-    () => ({
-      ...createDefaultUserProfile(authenticatedName),
-      ...(storedProfile ?? {}),
-    }),
-    [authenticatedName, storedProfile],
-  );
+  const defaultProfile = useMemo<ProfileFormValues>(() => {
+    const defaults = createDefaultUserProfile(authenticatedName);
+    return {
+      fullName: storedProfile?.fullName ?? defaults.fullName,
+      phoneNumber: storedProfile?.phoneNumber ?? defaults.phoneNumber,
+      city: storedProfile?.city ?? defaults.city,
+      dateOfBirth: storedProfile?.dateOfBirth ?? defaults.dateOfBirth,
+      bio: storedProfile?.bio ?? defaults.bio,
+      preferredCuisines:
+        storedProfile?.preferredCuisines ?? defaults.preferredCuisines,
+      dietaryPreferences:
+        storedProfile?.dietaryPreferences ?? defaults.dietaryPreferences,
+      cookingSkill: storedProfile?.cookingSkill ?? defaults.cookingSkill,
+    };
+  }, [
+    authenticatedName,
+    storedProfile?.bio,
+    storedProfile?.city,
+    storedProfile?.cookingSkill,
+    storedProfile?.dateOfBirth,
+    storedProfile?.dietaryPreferences,
+    storedProfile?.fullName,
+    storedProfile?.phoneNumber,
+    storedProfile?.preferredCuisines,
+  ]);
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [pendingDiscard, setPendingDiscard] =
+    useState<(() => void) | null>(null);
+  const allowNavigationRef = useRef(false);
   const {
     control,
     handleSubmit,
@@ -161,29 +176,12 @@ export function EditProfileScreen({ navigation }: Props) {
     useWatch({ control, name: 'cookingSkill' }) ?? 'Not specified';
 
   usePreventRemove(isDirty && !saving, ({ data }) => {
-    const discardChanges = () => navigation.dispatch(data.action);
-    if (Platform.OS === 'web') {
-      if (
-        typeof window !== 'undefined' &&
-        window.confirm('Discard your unsaved profile changes?')
-      ) {
-        discardChanges();
-      }
+    if (allowNavigationRef.current) {
+      allowNavigationRef.current = false;
       return;
     }
 
-    Alert.alert(
-      'Discard changes?',
-      'Your profile has unsaved changes. Leave without saving?',
-      [
-        { text: 'Keep editing', style: 'cancel' },
-        {
-          text: 'Discard',
-          style: 'destructive',
-          onPress: discardChanges,
-        },
-      ],
-    );
+    setPendingDiscard(() => () => navigation.dispatch(data.action));
   });
 
   useEffect(() => {
@@ -218,7 +216,7 @@ export function EditProfileScreen({ navigation }: Props) {
         }),
       ).unwrap();
       reset(values);
-      setSavedMessage('Your profile has been saved on this device.');
+      setSavedMessage('Profile updated successfully!');
     } catch (error) {
       setSubmitError(getErrorMessage(error));
     }
@@ -243,8 +241,8 @@ export function EditProfileScreen({ navigation }: Props) {
         {isOffline ? <OfflineBanner /> : null}
         {profileError ? (
           <ErrorState
-            title="Profile could not load"
-            message={profileError}
+            title="Unable to load your profile"
+            message="Please try again."
             retryLabel="Try again"
             onRetry={() => {
               void dispatch(loadUserProfile(userId));
@@ -275,6 +273,22 @@ export function EditProfileScreen({ navigation }: Props) {
             ]}
           >
             {isOffline ? <OfflineBanner /> : null}
+            <View style={styles.photoCard}>
+              <View style={styles.photoCardHeading}>
+                <Text style={styles.photoCardTitle}>Profile picture</Text>
+                <Text style={styles.photoCardDescription}>
+                  Saved on this device.
+                </Text>
+              </View>
+              <ProfilePhotoEditor
+                userId={userId}
+                profile={
+                  storedProfile ?? createDefaultUserProfile(authenticatedName)
+                }
+                displayName={defaultProfile.fullName || authenticatedName}
+                fallbackImageUri={user?.image}
+              />
+            </View>
             <Text style={styles.subtitle}>
               Update your details and tell CraveApp what you like to cook.
             </Text>
@@ -389,7 +403,7 @@ export function EditProfileScreen({ navigation }: Props) {
             />
 
             <ChoiceChips<CuisinePreference>
-              label="Favorite cuisines"
+              label="Favourite cuisines"
               options={cuisineOptions}
               selected={preferredCuisines}
               onToggle={(value) => {
@@ -457,6 +471,7 @@ export function EditProfileScreen({ navigation }: Props) {
               title="Save profile"
               icon="check"
               loading={saving}
+              loadingText="Saving changes..."
               disabled={saving}
               onPress={() => {
                 void handleSubmit(onSubmit)();
@@ -466,6 +481,22 @@ export function EditProfileScreen({ navigation }: Props) {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+      <ConfirmationDialog
+        visible={pendingDiscard !== null}
+        title="Discard changes?"
+        message="You have unsaved changes. Would you like to leave without saving?"
+        cancelLabel="Keep editing"
+        confirmLabel="Discard"
+        onCancel={() => setPendingDiscard(null)}
+        onConfirm={() => {
+          if (pendingDiscard) {
+            const discard = pendingDiscard;
+            setPendingDiscard(null);
+            allowNavigationRef.current = true;
+            discard();
+          }
+        }}
+      />
     </SafeAreaView>
   );
 }
@@ -489,6 +520,29 @@ function createStyles(theme: import('../../../shared/theme/theme').CraveTheme) {
     width: '100%',
     gap: theme.spacing.md,
     paddingBottom: theme.spacing.xl,
+  },
+  photoCard: {
+    alignItems: 'center',
+    gap: theme.spacing.md,
+    padding: theme.spacing.lg,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: theme.radius.xl,
+    backgroundColor: theme.colors.card,
+    ...theme.shadows.card,
+  },
+  photoCardHeading: {
+    alignSelf: 'stretch',
+    gap: theme.spacing.xxs,
+  },
+  photoCardTitle: {
+    color: theme.colors.heading,
+    fontSize: theme.typography.subtitle,
+    fontWeight: theme.typography.weight.bold,
+  },
+  photoCardDescription: {
+    color: theme.colors.secondaryText,
+    fontSize: theme.typography.caption,
   },
   subtitle: {
     color: theme.colors.chocolateBrown,

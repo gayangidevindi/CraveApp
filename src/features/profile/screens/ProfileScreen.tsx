@@ -1,11 +1,5 @@
 import { Feather } from '@expo/vector-icons';
 import {
-  ImageManipulator,
-  SaveFormat,
-} from 'expo-image-manipulator';
-import * as ImagePicker from 'expo-image-picker';
-import {
-  useCallback,
   useEffect,
   useState,
   type ComponentProps,
@@ -13,10 +7,7 @@ import {
 } from 'react';
 import {
   ActivityIndicator,
-  Image,
-  Linking,
   Modal,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -30,38 +21,25 @@ import type { MainTabScreenProps } from '../../../navigation/types';
 import { useAppDispatch, useAppSelector } from '../../../store/hooks';
 import { AuthNotice } from '../../auth/components/AuthNotice';
 import { signOut, clearSignOutError } from '../../auth/state/authActions';
+import { ProfilePhotoEditor } from '../components/ProfilePhotoEditor';
 import { CustomButton } from '../../../shared/components/CustomButton';
 import { ErrorState } from '../../../shared/components/ErrorState';
+import { ConfirmationDialog } from '../../../shared/components/ConfirmationDialog';
 import { LoadingState } from '../../../shared/components/LoadingState';
 import { OfflineBanner } from '../../../shared/components/OfflineBanner';
-import { ToastMessage } from '../../../shared/components/ToastMessage';
 import { useCraveThemeStyles } from '../../../shared/theme/useCraveTheme';
 import {
-  updateUserProfile,
   loadUserProfile,
 } from '../state/profileSlice';
+import { uniqueRecipesById } from '../../recipes/utils/normalizeRecipeData';
 import { setThemeMode } from '../../../shared/theme/themeSlice';
 import {
   createDefaultUserProfile,
-  MAX_PROFILE_IMAGE_DATA_URI_LENGTH,
 } from '../types/profileTypes';
 import appConfiguration from '../../../../app.json';
 
 type Props = MainTabScreenProps<'Profile'>;
-type ModalKind = 'photo' | 'about' | 'logout' | null;
-type PhotoSource = 'library' | 'camera';
-
-function getErrorMessage(error: unknown): string {
-  if (typeof error === 'string') {
-    return error;
-  }
-
-  if (error instanceof Error && error.message) {
-    return error.message;
-  }
-
-  return 'The profile picture could not be saved. Please try again.';
-}
+type ModalKind = 'about' | 'signOut' | null;
 
 interface DetailRowProps {
   icon: ComponentProps<typeof Feather>['name'];
@@ -141,6 +119,31 @@ function SettingsRow({
   );
 }
 
+interface StatCardProps {
+  icon: ComponentProps<typeof Feather>['name'];
+  label: string;
+  value: string;
+}
+
+function StatCard({ icon, label, value }: StatCardProps) {
+  const { theme, styles } = useCraveThemeStyles(createStyles);
+
+  return (
+    <View style={styles.statCard}>
+      <View style={styles.statIcon}>
+        <Feather
+          name={icon}
+          size={17}
+          color={theme.colors.deepOrange}
+          accessible={false}
+        />
+      </View>
+      <Text style={styles.statValue}>{value}</Text>
+      <Text style={styles.statLabel}>{label}</Text>
+    </View>
+  );
+}
+
 export function ProfileScreen({ navigation }: Props) {
   const { theme, styles } = useCraveThemeStyles(createStyles);
   const dispatch = useAppDispatch();
@@ -160,13 +163,11 @@ export function ProfileScreen({ navigation }: Props) {
     userId !== null && profileState.loadedByUser[userId] === true;
   const loading =
     userId !== null && profileState.loadingByUser[userId] === true;
-  const saving =
-    userId !== null && profileState.savingByUser[userId] === true;
   const profileError =
     userId !== null ? profileState.errorByUser[userId] : null;
   const favouriteCount =
     userId !== null
-      ? (favouritesState.byUser[userId]?.length ?? 0)
+      ? uniqueRecipesById(favouritesState.byUser[userId] ?? []).length
       : 0;
   const favouritesLoaded =
     userId !== null && favouritesState.loadedByUser[userId] === true;
@@ -177,14 +178,7 @@ export function ProfileScreen({ navigation }: Props) {
     user?.username ||
     '';
   const displayName = profile?.fullName.trim() || authenticatedName;
-  const avatarUri = profile?.avatarDataUri ?? user?.image ?? null;
-  const [failedAvatarUri, setFailedAvatarUri] = useState<string | null>(null);
   const [activeModal, setActiveModal] = useState<ModalKind>(null);
-  const [photoError, setPhotoError] = useState<string | null>(null);
-  const [photoNotice, setPhotoNotice] = useState<string | null>(null);
-  const [isPickingPhoto, setIsPickingPhoto] = useState(false);
-  const [permissionSettingsRequired, setPermissionSettingsRequired] =
-    useState(false);
 
   useEffect(() => {
     if (userId !== null && !loaded && !loading) {
@@ -192,185 +186,10 @@ export function ProfileScreen({ navigation }: Props) {
     }
   }, [dispatch, loaded, loading, userId]);
 
-  const saveAvatar = useCallback(
-    async (avatarDataUri: string | null, successMessage: string) => {
-      if (userId === null || !loaded) {
-        throw new Error('Your profile is still loading. Please try again.');
-      }
-
-      const currentProfile =
-        profile ?? createDefaultUserProfile(authenticatedName);
-
-      await dispatch(
-        updateUserProfile({
-          userId,
-          profile: { ...currentProfile, avatarDataUri },
-        }),
-      ).unwrap();
-
-      setPhotoNotice(successMessage);
-      setPhotoError(null);
-      setActiveModal(null);
-    },
-    [authenticatedName, dispatch, loaded, profile, userId],
-  );
-
-  const savePickedAsset = useCallback(
-    async (asset: ImagePicker.ImagePickerAsset) => {
-      if (asset.type !== 'image' && asset.mimeType?.startsWith('image/') !== true) {
-        throw new Error('Choose an image file for your profile picture.');
-      }
-
-      if (asset.width <= 0 || asset.height <= 0) {
-        throw new Error('The selected image has invalid dimensions.');
-      }
-
-      const scale = Math.min(
-        1,
-        512 / Math.max(asset.width, asset.height),
-      );
-      const width = Math.max(1, Math.round(asset.width * scale));
-      const height = Math.max(1, Math.round(asset.height * scale));
-      const context = ImageManipulator.manipulate(asset.uri);
-      context.resize({ width, height });
-      const renderedImage = await context.renderAsync();
-      const savedImage = await renderedImage.saveAsync({
-        format: SaveFormat.JPEG,
-        compress: 0.72,
-        base64: true,
-      });
-
-      if (!savedImage.base64) {
-        throw new Error('The selected image could not be prepared for saving.');
-      }
-
-      const avatarDataUri = `data:image/jpeg;base64,${savedImage.base64}`;
-      if (avatarDataUri.length > MAX_PROFILE_IMAGE_DATA_URI_LENGTH) {
-        throw new Error(
-          'This picture is too large to store on this device. Choose a smaller image.',
-        );
-      }
-
-      await saveAvatar(avatarDataUri, 'Profile picture updated.');
-    },
-    [saveAvatar],
-  );
-
-  useEffect(() => {
-    if (Platform.OS !== 'android' || userId === null || !loaded) {
-      return;
-    }
-
-    let active = true;
-
-    void ImagePicker.getPendingResultAsync()
-      .then(async (result) => {
-        if (!active || result === null || 'code' in result || result.canceled) {
-          if (active && result !== null && 'code' in result) {
-            setPhotoError(result.message);
-          }
-          return;
-        }
-
-        const asset = result.assets[0];
-        if (!asset) {
-          return;
-        }
-
-        try {
-          await savePickedAsset(asset);
-        } catch (error) {
-          if (active) {
-            setPhotoError(getErrorMessage(error));
-          }
-        }
-      })
-      .catch((error: unknown) => {
-        if (active) {
-          setPhotoError(getErrorMessage(error));
-        }
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [loaded, savePickedAsset, userId]);
-
-  const pickPhoto = async (source: PhotoSource) => {
-    setPhotoError(null);
-    setPhotoNotice(null);
-    setPermissionSettingsRequired(false);
-    setIsPickingPhoto(true);
-
-    try {
-      if (Platform.OS !== 'web') {
-        const permission =
-          source === 'camera'
-            ? await ImagePicker.requestCameraPermissionsAsync()
-            : await ImagePicker.requestMediaLibraryPermissionsAsync();
-
-        if (!permission.granted) {
-          setPermissionSettingsRequired(!permission.canAskAgain);
-          throw new Error(
-            source === 'camera'
-              ? permission.canAskAgain
-                ? 'Camera access is needed to take a profile picture. Allow access in the permission prompt.'
-                : 'Camera access is blocked. Open app settings and allow camera access to take a profile picture.'
-              : permission.canAskAgain
-                ? 'Photo access is needed to choose a profile picture. Allow access in the permission prompt.'
-                : 'Photo access is blocked. Open app settings and allow photo access to choose a profile picture.',
-          );
-        }
-      }
-
-      const result =
-        source === 'camera'
-          ? await ImagePicker.launchCameraAsync({
-              mediaTypes: ['images'],
-              allowsEditing: true,
-              aspect: [1, 1],
-            })
-          : await ImagePicker.launchImageLibraryAsync({
-              mediaTypes: ['images'],
-              allowsEditing: true,
-              aspect: [1, 1],
-            });
-
-      if (result.canceled) {
-        return;
-      }
-
-      const asset = result.assets[0];
-      if (!asset) {
-        throw new Error('The image picker did not return a picture.');
-      }
-
-      await savePickedAsset(asset);
-    } catch (error) {
-      setPhotoError(getErrorMessage(error));
-    } finally {
-      setIsPickingPhoto(false);
-    }
-  };
-
-  const removePhoto = async () => {
-    setPhotoError(null);
-    setPhotoNotice(null);
-    setIsPickingPhoto(true);
-
-    try {
-      await saveAvatar(null, 'Profile picture removed.');
-    } catch (error) {
-      setPhotoError(getErrorMessage(error));
-    } finally {
-      setIsPickingPhoto(false);
-    }
-  };
-
   const onSignOut = async () => {
-    setActiveModal(null);
     dispatch(clearSignOutError());
     await dispatch(signOut());
+    setActiveModal(null);
   };
 
   if (userId === null) {
@@ -390,8 +209,8 @@ export function ProfileScreen({ navigation }: Props) {
         {isOffline ? <OfflineBanner /> : null}
         {profileError ? (
           <ErrorState
-            title="Profile could not load"
-            message={profileError}
+            title="Unable to load your profile"
+            message="Please try again."
             retryLabel="Try again"
             onRetry={() => {
               void dispatch(loadUserProfile(userId));
@@ -422,63 +241,27 @@ export function ProfileScreen({ navigation }: Props) {
       >
         <View style={[styles.content, { maxWidth: imageWidth }]}>
           {isOffline ? <OfflineBanner /> : null}
-          <Text style={styles.pageTitle}>Your profile</Text>
+          <View style={styles.pageHeader}>
+            <Text style={styles.eyebrow}>YOUR KITCHEN, YOUR WAY</Text>
+            <Text style={styles.pageTitle}>Your profile</Text>
+            <Text style={styles.pageSubtitle}>
+              Keep your cooking preferences and account details up to date.
+            </Text>
+          </View>
 
-          {profileError && photoError === null ? (
-            <AuthNotice message={profileError} />
-          ) : null}
-          {photoError && activeModal !== 'photo' ? (
-            <AuthNotice message={photoError} />
-          ) : null}
+          {profileError ? <AuthNotice message={profileError} /> : null}
           {signOutError ? (
             <AuthNotice message={signOutError} />
           ) : null}
 
           <View style={styles.profileCard}>
-            <Pressable
-              onPress={() => {
-                setPhotoError(null);
-                setActiveModal('photo');
-              }}
-              accessibilityRole="button"
-              accessibilityLabel="Change profile picture"
-              style={styles.avatarButton}
-            >
-              <View style={styles.avatar}>
-                {avatarUri && failedAvatarUri !== avatarUri ? (
-                  <Image
-                    source={{ uri: avatarUri }}
-                    onError={() => setFailedAvatarUri(avatarUri)}
-                    style={styles.avatarImage}
-                    accessibilityLabel={`${displayName}'s profile picture`}
-                  />
-                ) : (
-                  <Feather
-                    name="user"
-                    size={42}
-                    color={theme.colors.darkBrown}
-                    accessible={false}
-                  />
-                )}
-              </View>
-              <View style={styles.cameraBadge}>
-                {saving || isPickingPhoto ? (
-                  <ActivityIndicator
-                    size="small"
-                    color={theme.colors.onPrimary}
-                    accessible={false}
-                  />
-                ) : (
-                  <Feather
-                    name="camera"
-                    size={15}
-                    color={theme.colors.onPrimary}
-                    accessible={false}
-                  />
-                )}
-              </View>
-            </Pressable>
-            <Text style={styles.photoHint}>Tap to edit your picture</Text>
+            <ProfilePhotoEditor
+              userId={userId}
+              profile={profile ?? createDefaultUserProfile(authenticatedName)}
+              displayName={displayName}
+              fallbackImageUri={user?.image}
+              recoverPendingResult
+            />
             <Text style={styles.name}>{displayName}</Text>
             <Text style={styles.username}>@{user?.username}</Text>
             <Text style={styles.email}>{user?.email}</Text>
@@ -494,6 +277,23 @@ export function ProfileScreen({ navigation }: Props) {
             />
           </View>
 
+          <View style={styles.statsGrid}>
+            <StatCard
+              icon="heart"
+              label="Saved recipes"
+              value={favouritesLoaded ? String(favouriteCount) : '—'}
+            />
+            <StatCard
+              icon="globe"
+              label="Favourite cuisines"
+              value={String(profile?.preferredCuisines.length ?? 0)}
+            />
+            <StatCard
+              icon="check-circle"
+              label="Dietary choices"
+              value={String(profile?.dietaryPreferences.length ?? 0)}
+            />
+          </View>
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Appearance</Text>
             <View style={styles.appearanceRow}>
@@ -506,13 +306,13 @@ export function ProfileScreen({ navigation }: Props) {
                 />
               </View>
               <View style={styles.settingsCopy}>
-                <Text style={styles.settingsLabel}>Dark Mode</Text>
+                <Text style={styles.settingsLabel}>Dark mode</Text>
                 <Text style={styles.settingsDescription}>
                   Switch to a darker appearance.
                 </Text>
               </View>
               <Pressable
-                accessibilityLabel="Dark Mode"
+                accessibilityLabel="Dark mode"
                 accessibilityHint="Switch to a darker appearance."
                 accessibilityRole="switch"
                 aria-checked={isDarkMode}
@@ -553,7 +353,7 @@ export function ProfileScreen({ navigation }: Props) {
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>About you</Text>
+            <Text style={styles.sectionTitle}>Personal information</Text>
             <View style={styles.infoCard}>
               <DetailRow
                 icon="phone"
@@ -592,14 +392,14 @@ export function ProfileScreen({ navigation }: Props) {
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Your CraveApp</Text>
+            <Text style={styles.sectionTitle}>Your account</Text>
             <SettingsRow
               icon="heart"
               label="Favourite recipes"
               description={
                 favouritesLoaded
                   ? `${favouriteCount} saved ${favouriteCount === 1 ? 'recipe' : 'recipes'}`
-                  : 'Loading saved recipes'
+                  : 'Loading your favourites...'
               }
               onPress={() => navigation.navigate('Favourites')}
               trailing={
@@ -613,7 +413,7 @@ export function ProfileScreen({ navigation }: Props) {
                 )
               }
             />
-            {favouriteError ? (
+            {favouriteError && !favouritesLoaded ? (
               <AuthNotice message={favouriteError} />
             ) : null}
             <SettingsRow
@@ -624,21 +424,21 @@ export function ProfileScreen({ navigation }: Props) {
             />
             <SettingsRow
               icon="log-out"
-              label="Log out"
+              label="Sign out"
               description="Sign out of this account"
-              onPress={() => setActiveModal('logout')}
+              onPress={() => setActiveModal('signOut')}
             />
           </View>
         </View>
       </ScrollView>
 
       <Modal
-        visible={activeModal !== null}
+        visible={activeModal === 'about'}
         transparent
         animationType="fade"
         statusBarTranslucent
         onRequestClose={() => {
-          if (!isPickingPhoto && !isSigningOut) {
+          if (!isSigningOut) {
             setActiveModal(null);
           }
         }}
@@ -647,7 +447,7 @@ export function ProfileScreen({ navigation }: Props) {
           <Pressable
             style={StyleSheet.absoluteFill}
             onPress={() => {
-              if (!isPickingPhoto && !isSigningOut) {
+              if (!isSigningOut) {
                 setActiveModal(null);
               }
             }}
@@ -655,81 +455,12 @@ export function ProfileScreen({ navigation }: Props) {
             accessibilityRole="button"
           />
           <View style={styles.modalCard}>
-            {activeModal === 'photo' ? (
-              <>
-                <Text style={styles.modalTitle}>Profile picture</Text>
-                <Text style={styles.modalDescription}>
-                  Choose a photo or take a new picture. It will be saved on
-                  this device.
-                </Text>
-                {avatarUri && failedAvatarUri !== avatarUri ? (
-                  <Image
-                    source={{ uri: avatarUri }}
-                    accessibilityLabel="Profile picture preview"
-                    style={styles.photoPreview}
-                  />
-                ) : null}
-                {photoError ? <AuthNotice message={photoError} /> : null}
-                {permissionSettingsRequired ? (
-                  <CustomButton
-                    title="Open app settings"
-                    icon="settings"
-                    variant="outline"
-                    onPress={() => {
-                      void Linking.openSettings().catch((error: unknown) => {
-                        setPhotoError(getErrorMessage(error));
-                      });
-                    }}
-                  />
-                ) : null}
-                <CustomButton
-                  title="Choose from gallery"
-                  icon="image"
-                  variant="outline"
-                  loading={isPickingPhoto}
-                  disabled={saving || isPickingPhoto}
-                  onPress={() => {
-                    void pickPhoto('library');
-                  }}
-                />
-                <CustomButton
-                  title="Take a photo"
-                  icon="camera"
-                  variant="outline"
-                  disabled={saving || isPickingPhoto}
-                  onPress={() => {
-                    void pickPhoto('camera');
-                  }}
-                />
-                {profile?.avatarDataUri ? (
-                  <CustomButton
-                    title="Remove current picture"
-                    icon="trash-2"
-                    variant="outline"
-                    loading={saving}
-                    disabled={saving || isPickingPhoto}
-                    onPress={() => {
-                      void removePhoto();
-                    }}
-                  />
-                ) : null}
-                <CustomButton
-                  title="Cancel"
-                  variant="secondary"
-                  disabled={isPickingPhoto}
-                  onPress={() => setActiveModal(null)}
-                />
-              </>
-            ) : activeModal === 'about' ? (
+            {activeModal === 'about' ? (
               <>
                 <Text style={styles.modalTitle}>About CraveApp</Text>
                 <Text style={styles.modalDescription}>
-                  CraveApp helps you discover recipes, save your favourites,
-                  and keep your cooking preferences close at hand.
-                </Text>
-                <Text style={styles.modalDescription}>
-                  Your profile details and picture are stored on this device
-                  and kept separate for each signed-in account.
+                  Discover recipes, save your favourites and make cooking feel
+                  more inspiring.
                 </Text>
                 <Text style={styles.versionText}>Version {appVersion}</Text>
                 <CustomButton
@@ -737,39 +468,23 @@ export function ProfileScreen({ navigation }: Props) {
                   onPress={() => setActiveModal(null)}
                 />
               </>
-            ) : (
-              <>
-                <Text style={styles.modalTitle}>Log out?</Text>
-                <Text style={styles.modalDescription}>
-                  You can sign back in to access your profile and saved
-                  recipes.
-                </Text>
-                <CustomButton
-                  title="Log out"
-                  icon="log-out"
-                  loading={isSigningOut}
-                  disabled={isSigningOut}
-                  onPress={() => {
-                    void onSignOut();
-                  }}
-                />
-                <CustomButton
-                  title="Stay signed in"
-                  variant="outline"
-                  disabled={isSigningOut}
-                  onPress={() => setActiveModal(null)}
-                />
-              </>
-            )}
+            ) : null}
           </View>
         </View>
       </Modal>
-      <View style={styles.toastContainer} pointerEvents="box-none">
-        <ToastMessage
-          message={photoNotice}
-          onDismiss={() => setPhotoNotice(null)}
-        />
-      </View>
+      <ConfirmationDialog
+        visible={activeModal === 'signOut'}
+        title="Sign out?"
+        message="Are you sure you want to sign out of your account?"
+        cancelLabel="Cancel"
+        confirmLabel="Sign out"
+        confirming={isSigningOut}
+        confirmingLabel="Signing out..."
+        onCancel={() => setActiveModal(null)}
+        onConfirm={() => {
+          void onSignOut();
+        }}
+      />
     </SafeAreaView>
   );
 }
@@ -796,6 +511,20 @@ function createStyles(theme: import('../../../shared/theme/theme').CraveTheme) {
     fontSize: theme.typography.title,
     fontWeight: theme.typography.weight.bold,
   },
+  pageHeader: {
+    gap: theme.spacing.xs,
+  },
+  eyebrow: {
+    color: theme.colors.deepOrange,
+    fontSize: theme.typography.overline,
+    fontWeight: theme.typography.weight.bold,
+    letterSpacing: 0.9,
+  },
+  pageSubtitle: {
+    color: theme.colors.secondaryText,
+    fontSize: theme.typography.body,
+    lineHeight: theme.typography.lineHeight.body,
+  },
   profileCard: {
     width: '100%',
     alignItems: 'center',
@@ -804,45 +533,39 @@ function createStyles(theme: import('../../../shared/theme/theme').CraveTheme) {
     backgroundColor: theme.colors.card,
     ...theme.shadows.card,
   },
-  avatarButton: {
-    position: 'relative',
-    width: 112,
-    height: 112,
-    alignItems: 'center',
-    justifyContent: 'center',
+  statsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: theme.spacing.sm,
   },
-  avatar: {
-    width: 104,
-    height: 104,
+  statCard: {
+    minWidth: 96,
+    flex: 1,
+    alignItems: 'flex-start',
+    gap: theme.spacing.xs,
+    padding: theme.spacing.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: theme.radius.lg,
+    backgroundColor: theme.colors.card,
+  },
+  statIcon: {
+    width: 34,
+    height: 34,
     alignItems: 'center',
     justifyContent: 'center',
-    overflow: 'hidden',
-    borderWidth: 3,
-    borderColor: theme.colors.primary,
-    borderRadius: theme.radius.pill,
+    borderRadius: theme.radius.md,
     backgroundColor: theme.colors.elevatedSurface,
   },
-  avatarImage: {
-    width: '100%',
-    height: '100%',
+  statValue: {
+    color: theme.colors.heading,
+    fontSize: theme.typography.heading,
+    fontWeight: theme.typography.weight.bold,
   },
-  cameraBadge: {
-    position: 'absolute',
-    right: 2,
-    bottom: 1,
-    width: 36,
-    height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: theme.colors.card,
-    borderRadius: theme.radius.pill,
-    backgroundColor: theme.colors.deepOrange,
-  },
-  photoHint: {
-    marginTop: theme.spacing.xs,
-    color: theme.colors.chocolateBrown,
-    fontSize: theme.typography.caption,
+  statLabel: {
+    color: theme.colors.secondaryText,
+    fontSize: theme.typography.overline,
+    fontWeight: theme.typography.weight.medium,
   },
   name: {
     marginTop: theme.spacing.md,
@@ -1041,19 +764,6 @@ function createStyles(theme: import('../../../shared/theme/theme').CraveTheme) {
     color: theme.colors.chocolateBrown,
     fontSize: theme.typography.body,
     lineHeight: theme.typography.lineHeight.body,
-  },
-  photoPreview: {
-    width: 112,
-    height: 112,
-    alignSelf: 'center',
-    borderRadius: theme.radius.pill,
-    backgroundColor: theme.colors.softYellow,
-  },
-  toastContainer: {
-    position: 'absolute',
-    right: 0,
-    bottom: 0,
-    left: 0,
   },
   versionText: {
     color: theme.colors.secondaryText,
