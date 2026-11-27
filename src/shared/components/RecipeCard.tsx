@@ -1,4 +1,4 @@
-import type { ComponentProps } from 'react';
+import { useState, type ComponentProps } from 'react';
 import { Feather } from '@expo/vector-icons';
 import {
   Image,
@@ -47,6 +47,13 @@ export function RecipeCard({
   style,
 }: RecipeCardProps) {
   const { theme, styles } = useCraveThemeStyles(createStyles);
+  const [failedImageKey, setFailedImageKey] = useState<string | null>(null);
+  const imageKey =
+    typeof imageSource === 'object' &&
+    imageSource !== null &&
+    'uri' in imageSource
+      ? imageSource.uri ?? ''
+      : String(imageSource ?? '');
 
   return (
     <View style={[styles.card, style]}>
@@ -61,12 +68,13 @@ export function RecipeCard({
         ]}
       >
         <View style={styles.imageContainer}>
-          {imageSource ? (
+          {imageSource && failedImageKey !== imageKey ? (
             <Image
               source={imageSource}
               resizeMode="cover"
               style={styles.image}
               accessible={false}
+              onError={() => setFailedImageKey(imageKey)}
             />
           ) : (
             <View style={styles.imagePlaceholder}>
