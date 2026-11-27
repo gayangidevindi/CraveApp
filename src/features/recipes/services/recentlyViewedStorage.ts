@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { z } from 'zod';
 
 import type { Meal } from './mealApi';
+import { uniqueRecipesById } from '../utils/normalizeRecipeData';
 
 const STORAGE_PREFIX = 'craveapp.recipes.recently-viewed.v1.';
 const MAX_RECENTLY_VIEWED = 12;
@@ -39,20 +40,17 @@ export async function readRecentlyViewed(userId: string): Promise<Meal[]> {
     throw new Error('Saved recently viewed recipes have invalid data.');
   }
 
-  return result.data.slice(0, MAX_RECENTLY_VIEWED);
+  return uniqueRecipesById(result.data).slice(0, MAX_RECENTLY_VIEWED);
 }
 
 export async function saveRecentlyViewed(
   userId: string,
   recipes: Meal[],
 ): Promise<void> {
-  const uniqueRecipes = recipes.filter(
-    (recipe, index) =>
-      recipes.findIndex((candidate) => candidate.idMeal === recipe.idMeal) ===
-      index,
-  );
   await AsyncStorage.setItem(
     getStorageKey(userId),
-    JSON.stringify(uniqueRecipes.slice(0, MAX_RECENTLY_VIEWED)),
+    JSON.stringify(
+      uniqueRecipesById(recipes).slice(0, MAX_RECENTLY_VIEWED),
+    ),
   );
 }

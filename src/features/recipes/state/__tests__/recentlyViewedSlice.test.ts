@@ -72,4 +72,24 @@ describe('recently viewed recipes', () => {
       restoredStore.getState().recentlyViewed.byUser['user-2'],
     ).toEqual([]);
   });
+
+  it('removes duplicate recipe IDs from previously cached history', async () => {
+    await AsyncStorage.setItem(
+      'craveapp.recipes.recently-viewed.v1.user-1',
+      JSON.stringify([
+        meal,
+        { ...meal, idMeal: ' 52772 ', strMeal: 'Duplicate entry' },
+        { ...meal, idMeal: '52773', strMeal: 'Another meal' },
+      ]),
+    );
+    const store = createStore();
+
+    await store.dispatch(loadRecentlyViewed('user-1')).unwrap();
+
+    expect(
+      store.getState().recentlyViewed.byUser['user-1']?.map(
+        ({ idMeal }) => idMeal,
+      ),
+    ).toEqual(['52772', '52773']);
+  });
 });

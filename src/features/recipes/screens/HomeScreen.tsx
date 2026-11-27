@@ -1,7 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import type { FetchBaseQueryError } from '@reduxjs/toolkit/query';
 import type { SerializedError } from '@reduxjs/toolkit';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -43,6 +43,11 @@ import {
   useSearchMealsQuery,
   type Meal,
 } from '../services/mealApi';
+import {
+  normalizeUniqueCategories,
+  normalizeUniqueStrings,
+  uniqueRecipesById,
+} from '../utils/normalizeRecipeData';
 import { useCraveThemeStyles } from '../../../shared/theme/useCraveTheme';
 
 type Props = MainTabScreenProps<'Home'>;
@@ -122,14 +127,29 @@ export function HomeScreen({ navigation }: Props) {
       : selectedArea !== null
         ? areaQuery
         : searchQuery;
-  const recipes = recipesQuery.data ?? [];
+  const recipes = useMemo(
+    () => uniqueRecipesById(recipesQuery.data ?? []),
+    [recipesQuery.data],
+  );
+  const categories = useMemo(
+    () => normalizeUniqueCategories(categoriesQuery.data ?? []),
+    [categoriesQuery.data],
+  );
+  const cuisineOptions = useMemo(
+    () => normalizeUniqueStrings(areasQuery.data ?? []),
+    [areasQuery.data],
+  );
   const featuredMeal = featuredQuery.data;
   const meals = isDebouncing ? [] : recipes;
   const userName = user?.firstName || user?.username || 'there';
   const userId = user ? String(user.id) : null;
-  const recentlyViewed = userId
-    ? (recentlyViewedState.byUser[userId] ?? [])
-    : [];
+  const recentlyViewed = useMemo(
+    () =>
+      userId
+        ? uniqueRecipesById(recentlyViewedState.byUser[userId] ?? [])
+        : [],
+    [recentlyViewedState.byUser, userId],
+  );
   const historyLoaded =
     userId !== null && recentlyViewedState.loadedByUser[userId] === true;
   const historyLoading =
@@ -137,9 +157,13 @@ export function HomeScreen({ navigation }: Props) {
   const historyError =
     userId !== null ? recentlyViewedState.errorByUser[userId] : null;
   const greeting = getTimeGreeting(new Date().getHours());
-  const favouriteMeals = userId
-    ? (favouritesState.byUser[userId] ?? [])
-    : [];
+  const favouriteMeals = useMemo(
+    () =>
+      userId
+        ? uniqueRecipesById(favouritesState.byUser[userId] ?? [])
+        : [],
+    [favouritesState.byUser, userId],
+  );
   const favouritesLoaded =
     userId !== null && favouritesState.loadedByUser[userId] === true;
   const favouritesSaving =
@@ -341,7 +365,7 @@ export function HomeScreen({ navigation }: Props) {
                 setSelectedArea(null);
               }}
             />
-            {categoriesQuery.data?.map((category) => (
+            {categories.map((category) => (
               <CategoryChip
                 key={category.idCategory}
                 label={category.strCategory}
@@ -384,7 +408,7 @@ export function HomeScreen({ navigation }: Props) {
               selected={selectedArea === null}
               onPress={() => setSelectedArea(null)}
             />
-            {areasQuery.data?.map((area) => (
+            {cuisineOptions.map((area) => (
               <CategoryChip
                 key={area}
                 label={area}

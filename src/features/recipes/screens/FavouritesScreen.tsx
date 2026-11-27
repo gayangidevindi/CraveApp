@@ -23,6 +23,10 @@ import { useAppDispatch, useAppSelector } from '../../../store/hooks';
 import { useCraveThemeStyles } from '../../../shared/theme/useCraveTheme';
 import type { Meal } from '../services/mealApi';
 import {
+  normalizeUniqueStrings,
+  uniqueRecipesById,
+} from '../utils/normalizeRecipeData';
+import {
   loadUserFavourites,
   toggleUserFavourite,
 } from '../state/favouritesSlice';
@@ -46,7 +50,10 @@ export function FavouritesScreen({ navigation }: Props) {
   const favouritesState = useAppSelector((state) => state.favourites);
   const userId = user ? String(user.id) : null;
   const favourites = useMemo(
-    () => (userId ? (favouritesState.byUser[userId] ?? []) : []),
+    () =>
+      userId
+        ? uniqueRecipesById(favouritesState.byUser[userId] ?? [])
+        : [],
     [favouritesState.byUser, userId],
   );
   const addedAt = useMemo(
@@ -69,12 +76,8 @@ export function FavouritesScreen({ navigation }: Props) {
   const numberOfColumns = width >= 720 ? 3 : width < 400 ? 1 : 2;
   const categories = useMemo(
     () =>
-      Array.from(
-        new Set(
-          favourites
-            .map((meal) => meal.strCategory?.trim())
-            .filter((category): category is string => Boolean(category)),
-        ),
+      normalizeUniqueStrings(
+        favourites.map((meal) => meal.strCategory),
       ).sort((left, right) => left.localeCompare(right)),
     [favourites],
   );
@@ -84,7 +87,9 @@ export function FavouritesScreen({ navigation }: Props) {
       .filter(
         (meal) =>
           (!query || meal.strMeal.toLocaleLowerCase().includes(query)) &&
-          (!selectedCategory || meal.strCategory === selectedCategory),
+          (!selectedCategory ||
+            meal.strCategory?.trim().toLowerCase() ===
+              selectedCategory.toLowerCase()),
       )
       .sort((left, right) => {
         if (sortOrder === 'name-asc') {

@@ -8,6 +8,11 @@ import {
 } from './recipeCache';
 import { saveLastRecipeSync } from './recipeSyncStorage';
 import { recipeSyncUpdated } from '../state/recipeSyncSlice';
+import {
+  normalizeUniqueAreas,
+  normalizeUniqueCategories,
+  uniqueRecipesById,
+} from '../utils/normalizeRecipeData';
 
 const MEAL_API_BASE_URL = 'https://www.themealdb.com/api/json/v1/1/';
 const networkBaseQuery = fetchBaseQuery({ baseUrl: MEAL_API_BASE_URL });
@@ -143,6 +148,39 @@ function getCacheSchema(endpoint: string): z.ZodType<unknown> | null {
   }
 }
 
+function normalizeCachedResponse(endpoint: string, response: unknown): unknown {
+  if (endpoint === 'getMealCategories') {
+    const parsed = categoriesResponseSchema.parse(response);
+    return {
+      ...parsed,
+      categories:
+        parsed.categories == null
+          ? parsed.categories
+          : normalizeUniqueCategories(parsed.categories),
+    };
+  }
+
+  if (endpoint === 'getMealAreas') {
+    const parsed = areasResponseSchema.parse(response);
+    return {
+      ...parsed,
+      meals:
+        parsed.meals == null ? parsed.meals : normalizeUniqueAreas(parsed.meals),
+    };
+  }
+
+  const parsed =
+    endpoint === 'getRecipeDetails'
+      ? mealDetailsResponseSchema.parse(response)
+      : mealListResponseSchema.parse(response);
+
+  return {
+    ...parsed,
+    meals:
+      parsed.meals == null ? parsed.meals : uniqueRecipesById(parsed.meals),
+  };
+}
+
 function hasNonEmptyArray(value: unknown): boolean {
   return Array.isArray(value) && value.length > 0;
 }
@@ -199,6 +237,7 @@ async function isDeviceOffline(state: unknown): Promise<boolean> {
 }
 
 async function getCachedResponse(
+  endpoint: string,
   cacheKey: string,
   schema: z.ZodType<unknown>,
 ): Promise<
@@ -214,7 +253,7 @@ async function getCachedResponse(
     const data = await readRecipeCache(cacheKey, schema);
 
     if (data !== null) {
-      return { data };
+      return { data: normalizeCachedResponse(endpoint, data) };
     }
 
     return {
@@ -246,7 +285,7 @@ const baseQueryWithOfflineCache: typeof networkBaseQuery = async (
   }
 
   if (await isDeviceOffline(api.getState())) {
-    return getCachedResponse(cacheKey, cacheSchema);
+    return getCachedResponse(api.endpoint, cacheKey, cacheSchema);
   }
 
   const response = await networkBaseQuery(args, api, extraOptions);
@@ -259,7 +298,11 @@ const baseQueryWithOfflineCache: typeof networkBaseQuery = async (
         response.error.status >= 500);
 
     if (shouldTryCache) {
-      const cachedResponse = await getCachedResponse(cacheKey, cacheSchema);
+      const cachedResponse = await getCachedResponse(
+        api.endpoint,
+        cacheKey,
+        cacheSchema,
+      );
       if ('data' in cachedResponse) {
         return cachedResponse;
       }
@@ -291,11 +334,16 @@ const baseQueryWithOfflineCache: typeof networkBaseQuery = async (
     };
   }
 
-  if (hasCacheableData(api.endpoint, validatedResponse.data)) {
+  const normalizedResponse = normalizeCachedResponse(
+    api.endpoint,
+    validatedResponse.data,
+  );
+
+  if (hasCacheableData(api.endpoint, normalizedResponse)) {
     try {
       await writeRecipeCache(
         cacheKey,
-        validatedResponse.data,
+        normalizedResponse,
         cacheSchema,
       );
       const syncedAt = Date.now();
@@ -306,7 +354,7 @@ const baseQueryWithOfflineCache: typeof networkBaseQuery = async (
     }
   }
 
-  return { data: validatedResponse.data, meta: response.meta };
+  return { data: normalizedResponse, meta: response.meta };
 };
 
 export type Meal = z.infer<typeof mealSchema>;
@@ -321,54 +369,62 @@ export const mealApi = createApi({
     getMealCategories: builder.query<MealCategory[], void>({
       query: () => 'categories.php',
       transformResponse: (response: unknown) =>
-        categoriesResponseSchema.parse(response).categories ?? [],
+        normalizeUniqueCategories(
+          categoriesResponseSchema.parse(response).categories ?? [],
+        ),
       providesTags: ['Category'],
     }),
     getMealAreas: builder.query<string[], void>({
       query: () => 'list.php?a=list',
       transformResponse: (response: unknown) =>
-        areasResponseSchema
-          .parse(response)
-          .meals?.map(({ strArea }) => strArea) ?? [],
+        normalizeUniqueAreas(
+          areasResponseSchema.parse(response).meals ?? [],
+        ).map(({ strArea }) => strArea),
       providesTags: ['Category'],
     }),
     searchMeals: builder.query<Meal[], string>({
       query: (searchTerm) =>
         `search.php?s=${encodeURIComponent(searchTerm)}`,
       transformResponse: (response: unknown) =>
-        mealListResponseSchema.parse(response).meals ?? [],
+        uniqueRecipesById(mealListResponseSchema.parse(response).meals ?? []),
       providesTags: ['Meal'],
     }),
     filterMealsByCategory: builder.query<Meal[], string>({
       query: (category) =>
         `filter.php?c=${encodeURIComponent(category)}`,
       transformResponse: (response: unknown) =>
-        mealListResponseSchema.parse(response).meals ?? [],
+        uniqueRecipesById(mealListResponseSchema.parse(response).meals ?? []),
       providesTags: ['Meal'],
     }),
     filterMealsByArea: builder.query<Meal[], string>({
       query: (area) => `filter.php?a=${encodeURIComponent(area)}`,
       transformResponse: (response: unknown) =>
-        mealListResponseSchema.parse(response).meals ?? [],
+        uniqueRecipesById(mealListResponseSchema.parse(response).meals ?? []),
       providesTags: ['Meal'],
     }),
     getFeaturedMeal: builder.query<Meal | null, void>({
       query: () => 'random.php',
       transformResponse: (response: unknown) =>
-        mealListResponseSchema.parse(response).meals?.[0] ?? null,
+        uniqueRecipesById(
+          mealListResponseSchema.parse(response).meals ?? [],
+        )[0] ?? null,
       providesTags: ['Meal'],
     }),
     getRandomMeal: builder.query<Meal | null, void>({
       query: () => 'random.php',
       transformResponse: (response: unknown) =>
-        mealListResponseSchema.parse(response).meals?.[0] ?? null,
+        uniqueRecipesById(
+          mealListResponseSchema.parse(response).meals ?? [],
+        )[0] ?? null,
       providesTags: ['Meal'],
     }),
     getRecipeDetails: builder.query<MealDetails | null, string>({
       query: (recipeId) =>
         `lookup.php?i=${encodeURIComponent(recipeId)}`,
       transformResponse: (response: unknown) =>
-        mealDetailsResponseSchema.parse(response).meals?.[0] ?? null,
+        uniqueRecipesById(
+          mealDetailsResponseSchema.parse(response).meals ?? [],
+        )[0] ?? null,
       providesTags: (_result, _error, recipeId) => [
         { type: 'Meal', id: recipeId },
       ],
